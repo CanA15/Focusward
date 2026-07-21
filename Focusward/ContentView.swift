@@ -165,7 +165,7 @@ private struct SetupView: View {
         DurationStepper(
             title: "Minutes",
             value: model.customMinutes,
-            range: 0...55,
+            range: 0...59,
             step: 5,
             isEnabled: model.customHours < FocusDuration.maximumHours,
             onChange: model.setCustomMinutes
@@ -241,14 +241,25 @@ private struct DurationStepper: View {
     var isEnabled = true
     let onChange: (Int) -> Void
 
+    private var valueBinding: Binding<Int> {
+        Binding(
+            get: { value },
+            set: { onChange(min(max($0, range.lowerBound), range.upperBound)) }
+        )
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text(value.formatted())
+
+                TextField(title, value: valueBinding, format: .number)
+                    .textFieldStyle(.roundedBorder)
                     .font(.title3.monospacedDigit())
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 64)
             }
 
             Spacer()
@@ -261,6 +272,7 @@ private struct DurationStepper: View {
                         .frame(width: 20, height: 20)
                 }
                 .buttonStyle(.bordered)
+                .buttonRepeatBehavior(.enabled)
                 .disabled(!isEnabled || value <= range.lowerBound)
 
                 Button {
@@ -270,6 +282,7 @@ private struct DurationStepper: View {
                         .frame(width: 20, height: 20)
                 }
                 .buttonStyle(.bordered)
+                .buttonRepeatBehavior(.enabled)
                 .disabled(!isEnabled || value >= range.upperBound)
             }
         }
