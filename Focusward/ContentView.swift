@@ -264,27 +264,23 @@ private struct DurationStepper: View {
                 .accessibilityLabel(title)
 
             VStack(spacing: 0) {
-                Button {
+                RepeatingStepButton(
+                    systemImage: "plus",
+                    accessibilityLabel: "Increase \(title)",
+                    isEnabled: isEnabled && value < range.upperBound
+                ) {
                     onChange(min(range.upperBound, value + step))
-                } label: {
-                    Image(systemName: "plus")
-                        .frame(width: 24, height: 18)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .buttonRepeatBehavior(.enabled)
-                .disabled(!isEnabled || value >= range.upperBound)
+                .frame(width: 24, height: 18)
 
-                Button {
+                RepeatingStepButton(
+                    systemImage: "minus",
+                    accessibilityLabel: "Decrease \(title)",
+                    isEnabled: isEnabled && value > range.lowerBound
+                ) {
                     onChange(max(range.lowerBound, value - step))
-                } label: {
-                    Image(systemName: "minus")
-                        .frame(width: 24, height: 18)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .buttonRepeatBehavior(.enabled)
-                .disabled(!isEnabled || value <= range.lowerBound)
+                .frame(width: 24, height: 18)
             }
         }
         .padding(.horizontal, 12)
@@ -298,6 +294,53 @@ private struct DurationStepper: View {
                 .stroke(Color.secondary.opacity(0.22), lineWidth: 1)
         }
         .disabled(!isEnabled)
+    }
+}
+
+private struct RepeatingStepButton: NSViewRepresentable {
+    let systemImage: String
+    let accessibilityLabel: String
+    let isEnabled: Bool
+    let action: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton()
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.performAction)
+        button.title = ""
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleProportionallyDown
+        button.isBordered = false
+        button.isContinuous = true
+        button.setPeriodicDelay(0.35, interval: 0.08)
+        return button
+    }
+
+    func updateNSView(_ button: NSButton, context: Context) {
+        context.coordinator.action = action
+        button.image = NSImage(
+            systemSymbolName: systemImage,
+            accessibilityDescription: accessibilityLabel
+        )
+        button.isEnabled = isEnabled
+        button.toolTip = accessibilityLabel
+        button.setAccessibilityLabel(accessibilityLabel)
+    }
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func performAction() {
+            action()
+        }
     }
 }
 
