@@ -9,11 +9,7 @@ enum DomainMatcher {
             candidate = "https://\(candidate)"
         }
 
-        guard let url = URL(string: candidate), var host = url.host?.lowercased() else {
-            return nil
-        }
-
-        host = host.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        guard var host = hostname(from: candidate) else { return nil }
         if host.hasPrefix("www.") {
             host.removeFirst(4)
         }

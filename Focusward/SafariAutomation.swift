@@ -51,11 +51,8 @@ final class SafariAutomation {
         }
 
         var snapshots: [SafariTabSnapshot] = []
-        if result.numberOfItems == 0 {
-            return snapshots
-        }
-
-        for index in 1...result.numberOfItems {
+        for offset in 0..<result.numberOfItems {
+            let index = offset + 1
             guard
                 let row = result.atIndex(index),
                 row.descriptorType == typeAEList,

@@ -73,7 +73,7 @@ private struct SetupView: View {
                         .padding(.vertical, 12)
                     } else {
                         VStack(spacing: 0) {
-                            ForEach(Array(model.domains.enumerated()), id: \.element) { index, domain in
+                            ForEach(model.domains, id: \.self) { domain in
                                 HStack(spacing: 10) {
                                     Image(systemName: "nosign")
                                         .foregroundStyle(focuswardGreen)
@@ -91,7 +91,7 @@ private struct SetupView: View {
                                 }
                                 .padding(.vertical, 10)
 
-                                if index < model.domains.count - 1 {
+                                if domain != model.domains.last {
                                     Divider()
                                 }
                             }
@@ -105,7 +105,7 @@ private struct SetupView: View {
                     systemImage: "timer"
                 ) {
                     LazyVGrid(columns: durationColumns, spacing: 10) {
-                        ForEach(model.durationChoices, id: \.self) { minutes in
+                        ForEach(FocusDuration.presets, id: \.self) { minutes in
                             DurationChoiceButton(
                                 title: FocusDuration.compactLabel(totalMinutes: minutes),
                                 subtitle: quickDurationSubtitle(minutes),
@@ -164,9 +164,7 @@ private struct SetupView: View {
 
                     Spacer(minLength: 16)
 
-                    Button {
-                        model.startSession()
-                    } label: {
+                    Button(action: model.startSession) {
                         Label("Start Session", systemImage: "arrow.right")
                             .frame(minWidth: 112)
                     }

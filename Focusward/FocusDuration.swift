@@ -1,5 +1,3 @@
-import Foundation
-
 enum FocusDuration {
     static let presets = [25, 45, 60, 120, 240]
     static let maximumHours = 720
@@ -17,32 +15,15 @@ enum FocusDuration {
 
     static func label(totalMinutes: Int) -> String {
         let components = components(totalMinutes: totalMinutes)
+        guard components.hours > 0 else { return "\(components.minutes) min" }
 
-        if components.hours == 0 {
-            return "\(components.minutes) min"
-        }
-
-        if components.hours >= 24 {
-            let days = components.hours / 24
-            let remainingHours = components.hours % 24
-            var parts = [days == 1 ? "1 day" : "\(days) days"]
-
-            if remainingHours > 0 {
-                parts.append(remainingHours == 1 ? "1 hour" : "\(remainingHours) hours")
-            }
-            if components.minutes > 0 {
-                parts.append("\(components.minutes) min")
-            }
-
-            return parts.joined(separator: " ")
-        }
-
-        if components.minutes == 0 {
-            return components.hours == 1 ? "1 hour" : "\(components.hours) hours"
-        }
-
-        let hourLabel = components.hours == 1 ? "1 hour" : "\(components.hours) hours"
-        return "\(hourLabel) \(components.minutes) min"
+        let days = components.hours / 24
+        let hours = components.hours % 24
+        var parts: [String] = []
+        if days > 0 { parts.append(days == 1 ? "1 day" : "\(days) days") }
+        if hours > 0 { parts.append(hours == 1 ? "1 hour" : "\(hours) hours") }
+        if components.minutes > 0 { parts.append("\(components.minutes) min") }
+        return parts.joined(separator: " ")
     }
 
     static func compactLabel(totalMinutes: Int) -> String {

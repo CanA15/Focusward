@@ -16,8 +16,6 @@ final class FocuswardModel: ObservableObject {
     @Published private(set) var automationMessage = "Ready"
     @Published private(set) var redirectedTabCount = 0
 
-    let durationChoices = FocusDuration.presets
-
     private let store: SessionStore
     private let safari: SafariAutomation
     private var monitorTask: Task<Void, Never>?
@@ -84,12 +82,6 @@ final class FocuswardModel: ObservableObject {
         draftDomain = ""
     }
 
-    func removeDomains(at offsets: IndexSet) {
-        guard !isSessionActive else { return }
-        domains.remove(atOffsets: offsets)
-        store.domains = domains
-    }
-
     func removeDomain(_ domain: String) {
         guard !isSessionActive else { return }
         domains.removeAll { $0 == domain }
@@ -97,7 +89,7 @@ final class FocuswardModel: ObservableObject {
     }
 
     func selectDurationPreset(_ minutes: Int) {
-        guard durationChoices.contains(minutes) else { return }
+        guard FocusDuration.presets.contains(minutes) else { return }
         durationMinutes = minutes
         usesCustomDuration = false
         store.preferredDurationMinutes = minutes
@@ -159,10 +151,6 @@ final class FocuswardModel: ObservableObject {
     func confirmEarlyEnd() {
         guard let earlyEndReadyAt, Date() >= earlyEndReadyAt else { return }
         finishSession(message: "Session ended early")
-    }
-
-    func checkNow() {
-        enforceCurrentTabs()
     }
 
     private func startMonitor() {
