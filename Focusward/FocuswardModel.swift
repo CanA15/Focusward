@@ -7,13 +7,16 @@ final class FocuswardModel: ObservableObject {
 
     @Published private(set) var domains: [String]
     @Published var draftDomain = ""
-    @Published var durationMinutes = 45
+    @Published private(set) var durationMinutes = 45
+    @Published private(set) var usesCustomDuration = false
+    @Published private(set) var customHours = 4
+    @Published private(set) var customMinutes = 0
     @Published private(set) var sessionEnd: Date?
     @Published private(set) var earlyEndReadyAt: Date?
     @Published private(set) var automationMessage = "Ready"
     @Published private(set) var redirectedTabCount = 0
 
-    let durationChoices = [15, 25, 45, 60, 90, 120]
+    let durationChoices = FocusDuration.presets
 
     private let store: SessionStore
     private let safari: SafariAutomation
@@ -26,6 +29,16 @@ final class FocuswardModel: ObservableObject {
         self.store = store
         self.safari = safari
         self.domains = store.domains
+
+        let preferredDuration = store.preferredDurationMinutes
+        if FocusDuration.presets.contains(preferredDuration) {
+            self.durationMinutes = preferredDuration
+        } else if preferredDuration > 0 {
+            let components = FocusDuration.components(totalMinutes: preferredDuration)
+            self.usesCustomDuration = true
+            self.customHours = components.hours
+            self.customMinutes = components.minutes
+        }
 
         if let storedEnd = store.sessionEnd, storedEnd > Date() {
             self.sessionEnd = storedEnd
@@ -41,6 +54,20 @@ final class FocuswardModel: ObservableObject {
     var isSessionActive: Bool {
         guard let sessionEnd else { return false }
         return sessionEnd > Date()
+    }
+
+    var selectedDurationMinutes: Int {
+        usesCustomDuration
+            ? FocusDuration.totalMinutes(hours: customHours, minutes: customMinutes)
+            : durationMinutes
+    }
+
+    var durationSummary: String {
+        FocusDuration.label(totalMinutes: selectedDurationMinutes)
+    }
+
+    var canStartSession: Bool {
+        !domains.isEmpty && selectedDurationMinutes > 0
     }
 
     func addDraftDomain() {
@@ -63,13 +90,51 @@ final class FocuswardModel: ObservableObject {
         store.domains = domains
     }
 
+    func removeDomain(_ domain: String) {
+        guard !isSessionActive else { return }
+        domains.removeAll { $0 == domain }
+        store.domains = domains
+    }
+
+    func selectDurationPreset(_ minutes: Int) {
+        guard durationChoices.contains(minutes) else { return }
+        durationMinutes = minutes
+        usesCustomDuration = false
+        store.preferredDurationMinutes = minutes
+    }
+
+    func selectCustomDuration() {
+        usesCustomDuration = true
+        persistPreferredDuration()
+    }
+
+    func setCustomHours(_ hours: Int) {
+        customHours = min(max(hours, 0), FocusDuration.maximumHours)
+        if customHours == FocusDuration.maximumHours {
+            customMinutes = 0
+        }
+        persistPreferredDuration()
+    }
+
+    func setCustomMinutes(_ minutes: Int) {
+        customMinutes = customHours == FocusDuration.maximumHours
+            ? 0
+            : min(max(minutes, 0), 59)
+        persistPreferredDuration()
+    }
+
     func startSession() {
         guard !domains.isEmpty else {
             automationMessage = "Add at least one domain first"
             return
         }
 
-        let end = Date().addingTimeInterval(TimeInterval(durationMinutes * 60))
+        guard selectedDurationMinutes > 0 else {
+            automationMessage = "Choose a session length first"
+            return
+        }
+
+        let end = Date().addingTimeInterval(TimeInterval(selectedDurationMinutes * 60))
         sessionEnd = end
         earlyEndReadyAt = nil
         redirectedTabCount = 0
@@ -165,5 +230,10 @@ final class FocuswardModel: ObservableObject {
         earlyEndReadyAt = nil
         store.clearSession()
         automationMessage = message
+    }
+
+    private func persistPreferredDuration() {
+        guard selectedDurationMinutes > 0 else { return }
+        store.preferredDurationMinutes = selectedDurationMinutes
     }
 }

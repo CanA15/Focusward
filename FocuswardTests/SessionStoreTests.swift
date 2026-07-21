@@ -12,11 +12,13 @@ final class SessionStoreTests: XCTestCase {
         let ready = end.addingTimeInterval(-90)
 
         store.domains = ["youtube.com"]
+        store.preferredDurationMinutes = 270
         store.sessionEnd = end
         store.earlyEndReadyAt = ready
 
         let restored = SessionStore(defaults: defaults)
         XCTAssertEqual(restored.domains, ["youtube.com"])
+        XCTAssertEqual(restored.preferredDurationMinutes, 270)
         XCTAssertEqual(restored.sessionEnd, end)
         XCTAssertEqual(restored.earlyEndReadyAt, ready)
 
@@ -24,5 +26,6 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertNil(restored.sessionEnd)
         XCTAssertNil(restored.earlyEndReadyAt)
         XCTAssertEqual(restored.domains, ["youtube.com"])
+        XCTAssertEqual(restored.preferredDurationMinutes, 270)
     }
 }

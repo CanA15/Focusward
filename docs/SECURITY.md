@@ -6,7 +6,7 @@ During an active session, Safari supplies Focusward with the complete address of
 
 ## What Focusward stores
 
-Focusward stores only the normalized blocked domains, session end time, and optional early-end cooldown time in the app's local `UserDefaults` container. The bundled shield is a local HTML file with a restrictive Content Security Policy and no remote assets.
+Focusward stores only the normalized blocked domains, preferred session length, session end time, and optional early-end cooldown time in the app's local `UserDefaults` container. The bundled shield is a local HTML file with a restrictive Content Security Policy and no remote assets.
 
 ## Permissions and process boundary
 

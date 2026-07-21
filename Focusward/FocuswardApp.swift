@@ -10,13 +10,20 @@ struct FocuswardApp: App {
         Window("Focusward", id: "main") {
             ContentView()
                 .environmentObject(model)
-                .frame(minWidth: 560, minHeight: 620)
+                .frame(
+                    minWidth: 640,
+                    idealWidth: 720,
+                    maxWidth: 900,
+                    minHeight: 680,
+                    idealHeight: 780,
+                    maxHeight: 960
+                )
                 .onOpenURL { _ in
                     NSApp.activate(ignoringOtherApps: true)
                     NSApp.windows.first(where: { $0.canBecomeKey })?.makeKeyAndOrderFront(nil)
                 }
         }
-        .defaultSize(width: 600, height: 680)
+        .defaultSize(width: 720, height: 780)
 
         MenuBarExtra {
             MenuBarContentView()

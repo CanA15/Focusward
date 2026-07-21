@@ -10,6 +10,7 @@ It runs as your normal macOS user: no administrator password, root helper, paid 
 - Match only normalized hostnames against a local blocklist.
 - Replace blocked tabs with a bundled `blocked.html` shield.
 - Keep sessions and settings on the Mac.
+- Offer quick durations plus a custom hours-and-minutes session up to 30 days.
 - Make ordinary quitting during a session require a cancelable cooldown.
 
 ## Privacy boundary

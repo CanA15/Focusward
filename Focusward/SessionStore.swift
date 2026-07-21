@@ -3,6 +3,7 @@ import Foundation
 final class SessionStore {
     private enum Key {
         static let domains = "domains"
+        static let preferredDurationMinutes = "preferredDurationMinutes"
         static let sessionEnd = "sessionEnd"
         static let earlyEndReadyAt = "earlyEndReadyAt"
     }
@@ -21,6 +22,19 @@ final class SessionStore {
     var sessionEnd: Date? {
         get { date(forKey: Key.sessionEnd) }
         set { set(newValue, forKey: Key.sessionEnd) }
+    }
+
+    var preferredDurationMinutes: Int {
+        get {
+            let stored = defaults.integer(forKey: Key.preferredDurationMinutes)
+            return stored > 0 ? stored : 45
+        }
+        set {
+            defaults.set(
+                min(max(newValue, 1), FocusDuration.maximumHours * 60),
+                forKey: Key.preferredDurationMinutes
+            )
+        }
     }
 
     var earlyEndReadyAt: Date? {
