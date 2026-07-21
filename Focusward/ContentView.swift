@@ -378,7 +378,7 @@ private struct EarlyEndControls: View {
 
     var body: some View {
         if let readyAt = model.earlyEndReadyAt {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { context in
                 if context.date >= readyAt {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("The cooldown is complete. Ending still requires confirmation.")
@@ -403,10 +403,7 @@ private struct EarlyEndControls: View {
                             Button("Cancel Request", action: model.cancelEarlyEnd)
                         }
 
-                        ProgressView(
-                            timerInterval: readyAt.addingTimeInterval(-90)...readyAt,
-                            countsDown: false
-                        )
+                        ProgressView(value: cooldownProgress(until: readyAt, now: context.date))
                         .progressViewStyle(.linear)
                         .labelsHidden()
                         .tint(.blue)
@@ -429,6 +426,10 @@ private struct EarlyEndControls: View {
 
     private func cooldownText(until date: Date, now: Date) -> String {
         "\(max(0, Int(ceil(date.timeIntervalSince(now)))))s"
+    }
+
+    private func cooldownProgress(until date: Date, now: Date) -> Double {
+        min(max(1 - (date.timeIntervalSince(now) / 90), 0), 1)
     }
 }
 
