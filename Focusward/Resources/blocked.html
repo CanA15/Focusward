@@ -15,6 +15,7 @@
       --secondary: #6e6e73;
       --border: rgba(0, 0, 0, .08);
       --shadow: rgba(0, 0, 0, .10);
+      --icon-surface: rgba(118, 118, 128, .10);
       --blue: #007aff;
       --blue-hover: #006ee6;
     }
@@ -26,6 +27,7 @@
         --secondary: #aeaeb2;
         --border: rgba(255, 255, 255, .10);
         --shadow: rgba(0, 0, 0, .35);
+        --icon-surface: rgba(118, 118, 128, .22);
         --blue: #0a84ff;
         --blue-hover: #409cff;
       }
@@ -58,11 +60,11 @@
       margin: 0 auto 1.5rem;
       place-items: center;
       border-radius: 1.1rem;
-      background: var(--blue);
-      color: white;
+      border: 1px solid var(--border);
+      background: var(--icon-surface);
+      color: var(--text);
       font-size: 2rem;
       font-weight: 700;
-      box-shadow: 0 .5rem 1.5rem color-mix(in srgb, var(--blue) 28%, transparent);
     }
     h1 {
       margin: 0;

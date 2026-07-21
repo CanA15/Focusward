@@ -12,7 +12,6 @@ struct ContentView: View {
                 SetupView()
             }
         }
-        .tint(.blue)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             Color(nsColor: .windowBackgroundColor)
@@ -61,6 +60,7 @@ private struct SetupView: View {
 
                     Button("Add", action: model.addDraftDomain)
                         .buttonStyle(.borderedProminent)
+                        .tint(.blue)
                 }
 
                 if model.domains.isEmpty {
@@ -98,9 +98,10 @@ private struct SetupView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                .tint(.blue)
 
                 if model.usesCustomDuration {
-                    HStack(spacing: 24) {
+                    VStack(spacing: 10) {
                         DurationStepper(
                             title: "Hours",
                             value: model.customHours,
@@ -110,7 +111,6 @@ private struct SetupView: View {
                         )
 
                         Divider()
-                            .frame(height: 30)
 
                         DurationStepper(
                             title: "Minutes",
@@ -150,14 +150,13 @@ private struct SetupView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .tint(.blue)
                 .disabled(!model.canStartSession)
             } footer: {
                 Text("Everything stays on this Mac. Focusward asks to control Safari, never for an administrator password.")
             }
         }
         .formStyle(.grouped)
-        .frame(maxWidth: 760)
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -166,7 +165,7 @@ private struct AppIdentityRow: View {
         HStack(spacing: 14) {
             Image(systemName: "shield.lefthalf.filled")
                 .font(.system(size: 32, weight: .medium))
-                .foregroundStyle(.blue)
+                .foregroundStyle(.secondary)
                 .frame(width: 46, height: 46)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -241,8 +240,6 @@ private struct ActiveSessionView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(maxWidth: 760)
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -253,7 +250,7 @@ private struct SessionSummary: View {
         VStack(spacing: 12) {
             Image(systemName: "shield.fill")
                 .font(.system(size: 40))
-                .foregroundStyle(.blue)
+                .foregroundStyle(.secondary)
 
             Text("Session Active")
                 .font(.title2.weight(.semibold))
@@ -345,6 +342,7 @@ private struct EarlyEndControls: View {
                         )
                         .progressViewStyle(.linear)
                         .labelsHidden()
+                        .tint(.blue)
                     }
                 }
             }
@@ -419,7 +417,6 @@ struct MenuBarContentView: View {
                 Label("Quit Focusward", systemImage: "power")
             }
         }
-        .tint(.blue)
         .padding(14)
         .frame(width: 280)
     }
