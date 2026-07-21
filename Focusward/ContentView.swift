@@ -90,26 +90,18 @@ private struct SetupView: View {
                 }
 
                 if model.usesCustomDuration {
-                    VStack(spacing: 10) {
-                        DurationStepper(
-                            title: "Hours",
-                            value: model.customHours,
-                            range: 0...FocusDuration.maximumHours,
-                            step: 1,
-                            onChange: model.setCustomHours
-                        )
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 12) {
+                            customHoursControl
+                            customMinutesControl
+                        }
 
-                        Divider()
-
-                        DurationStepper(
-                            title: "Minutes",
-                            value: model.customMinutes,
-                            range: 0...55,
-                            step: 5,
-                            isEnabled: model.customHours < FocusDuration.maximumHours,
-                            onChange: model.setCustomMinutes
-                        )
+                        VStack(spacing: 10) {
+                            customHoursControl
+                            customMinutesControl
+                        }
                     }
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
                 LabeledContent {
@@ -157,6 +149,27 @@ private struct SetupView: View {
         case 240: "half day"
         default: "preset"
         }
+    }
+
+    private var customHoursControl: some View {
+        DurationStepper(
+            title: "Hours",
+            value: model.customHours,
+            range: 0...FocusDuration.maximumHours,
+            step: 1,
+            onChange: model.setCustomHours
+        )
+    }
+
+    private var customMinutesControl: some View {
+        DurationStepper(
+            title: "Minutes",
+            value: model.customMinutes,
+            range: 0...55,
+            step: 5,
+            isEnabled: model.customHours < FocusDuration.maximumHours,
+            onChange: model.setCustomMinutes
+        )
     }
 }
 
@@ -228,22 +241,41 @@ private struct DurationStepper: View {
     var isEnabled = true
     let onChange: (Int) -> Void
 
-    private var valueBinding: Binding<Int> {
-        Binding(get: { value }, set: onChange)
-    }
-
     var body: some View {
-        HStack {
-            Text(title)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Stepper(value: valueBinding, in: range, step: step) {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text(value.formatted())
-                    .monospacedDigit()
-                    .frame(minWidth: 28, alignment: .trailing)
+                    .font(.title3.monospacedDigit())
             }
-            .fixedSize()
+
+            Spacer()
+
+            HStack(spacing: 6) {
+                Button {
+                    onChange(max(range.lowerBound, value - step))
+                } label: {
+                    Image(systemName: "minus")
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!isEnabled || value <= range.lowerBound)
+
+                Button {
+                    onChange(min(range.upperBound, value + step))
+                } label: {
+                    Image(systemName: "plus")
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!isEnabled || value >= range.upperBound)
+            }
         }
+        .padding(12)
+        .frame(minWidth: 190, maxWidth: .infinity)
+        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
         .disabled(!isEnabled)
     }
 }
