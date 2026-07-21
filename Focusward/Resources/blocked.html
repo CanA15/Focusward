@@ -9,8 +9,26 @@
     :root {
       color-scheme: light dark;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-      background: #0d1110;
-      color: #f4f7f5;
+      --page: #f5f5f7;
+      --surface: rgba(255, 255, 255, .86);
+      --text: #1d1d1f;
+      --secondary: #6e6e73;
+      --border: rgba(0, 0, 0, .08);
+      --shadow: rgba(0, 0, 0, .10);
+      --blue: #007aff;
+      --blue-hover: #006ee6;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page: #1c1c1e;
+        --surface: rgba(44, 44, 46, .88);
+        --text: #f5f5f7;
+        --secondary: #aeaeb2;
+        --border: rgba(255, 255, 255, .10);
+        --shadow: rgba(0, 0, 0, .35);
+        --blue: #0a84ff;
+        --blue-hover: #409cff;
+      }
     }
     * { box-sizing: border-box; }
     body {
@@ -18,44 +36,71 @@
       margin: 0;
       display: grid;
       place-items: center;
-      background:
-        radial-gradient(circle at 50% 10%, rgba(77, 180, 124, .18), transparent 36rem),
-        #0d1110;
+      padding: 1rem;
+      background: var(--page);
+      color: var(--text);
     }
     main {
-      width: min(42rem, calc(100vw - 3rem));
-      padding: 3rem;
-      border: 1px solid rgba(255, 255, 255, .12);
-      border-radius: 2rem;
-      background: rgba(255, 255, 255, .045);
-      box-shadow: 0 2rem 7rem rgba(0, 0, 0, .35);
+      width: min(38rem, 100%);
+      padding: clamp(2rem, 7vw, 3.5rem);
+      border: 1px solid var(--border);
+      border-radius: 1.75rem;
+      background: var(--surface);
+      box-shadow: 0 1.5rem 5rem var(--shadow);
       text-align: center;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
     }
     .shield {
       display: grid;
-      width: 5rem;
-      height: 5rem;
+      width: 4.5rem;
+      height: 4.5rem;
       margin: 0 auto 1.5rem;
       place-items: center;
-      border-radius: 1.5rem;
-      background: #45a873;
-      color: #07110b;
-      font-size: 2.4rem;
-      font-weight: 800;
+      border-radius: 1.1rem;
+      background: var(--blue);
+      color: white;
+      font-size: 2rem;
+      font-weight: 700;
+      box-shadow: 0 .5rem 1.5rem color-mix(in srgb, var(--blue) 28%, transparent);
     }
-    h1 { margin: 0; font-size: clamp(2rem, 6vw, 3.6rem); letter-spacing: -.05em; }
-    .domain { margin: .8rem 0 2.2rem; color: #aebbb3; font-size: 1.05rem; }
-    .timer { margin: 0 0 1rem; font: 600 clamp(2.5rem, 9vw, 5rem)/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .message { max-width: 30rem; margin: 0 auto 2rem; color: #c9d3cd; line-height: 1.6; }
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 6vw, 3.25rem);
+      letter-spacing: -.045em;
+      line-height: 1.05;
+    }
+    .domain {
+      margin: .75rem 0 2.25rem;
+      color: var(--secondary);
+      font-size: 1.05rem;
+    }
+    .timer {
+      margin: 0 0 1rem;
+      font: 600 clamp(2.4rem, 9vw, 4.75rem)/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -.04em;
+      white-space: nowrap;
+    }
+    .message {
+      max-width: 30rem;
+      margin: 0 auto 2rem;
+      color: var(--secondary);
+      line-height: 1.55;
+    }
     a {
       display: inline-block;
-      padding: .8rem 1.1rem;
-      border: 1px solid rgba(255, 255, 255, .18);
-      border-radius: .8rem;
-      color: inherit;
+      padding: .75rem 1.15rem;
+      border-radius: .75rem;
+      background: var(--blue);
+      color: white;
+      font-weight: 600;
       text-decoration: none;
+      transition: background-color .15s ease, transform .15s ease;
     }
-    a:hover { background: rgba(255, 255, 255, .08); }
+    a:hover { background: var(--blue-hover); }
+    a:active { transform: scale(.98); }
+    a:focus-visible { outline: 3px solid color-mix(in srgb, var(--blue) 35%, transparent); outline-offset: 3px; }
   </style>
 </head>
 <body>
@@ -64,7 +109,7 @@
     <h1>Stay with what matters.</h1>
     <p class="domain" id="domain">This site is blocked during your session.</p>
     <p class="timer" id="timer">--:--</p>
-    <p class="message" id="message">Focusward replaced this tab locally. Nothing from this shield page is hosted or downloaded.</p>
+    <p class="message" id="message">Focusward replaced this tab locally. Nothing from this page is hosted or downloaded.</p>
     <a href="focusward://open">Open Focusward</a>
   </main>
   <script>
@@ -74,14 +119,24 @@
     const timer = document.getElementById("timer");
     const domain = document.getElementById("domain");
     const message = document.getElementById("message");
+    const pad = value => String(value).padStart(2, "0");
 
-    if (host) domain.textContent = `${host} is outside this focus session.`;
+    if (host) domain.textContent = `${host} is blocked during this session.`;
+
+    function formatRemaining(totalSeconds) {
+      const days = Math.floor(totalSeconds / 86400);
+      const hours = Math.floor((totalSeconds % 86400) / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      if (days > 0) return `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+      if (hours > 0) return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+      return `${pad(minutes)}:${pad(seconds)}`;
+    }
 
     function updateTimer() {
       const remaining = Math.max(0, Math.ceil((end - Date.now()) / 1000));
-      const minutes = Math.floor(remaining / 60);
-      const seconds = remaining % 60;
-      timer.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+      timer.textContent = formatRemaining(remaining);
       if (remaining === 0) {
         message.textContent = "The session has finished. You can navigate somewhere else when you are ready.";
       }

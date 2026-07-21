@@ -1,226 +1,177 @@
 import AppKit
 import SwiftUI
 
-private let focuswardGreen = Color(red: 0.20, green: 0.63, blue: 0.40)
-
 struct ContentView: View {
     @EnvironmentObject private var model: FocuswardModel
 
     var body: some View {
-        ZStack {
-            Color(nsColor: .windowBackgroundColor)
-                .ignoresSafeArea()
-
-            LinearGradient(
-                colors: [focuswardGreen.opacity(0.10), .clear, .clear],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
+        Group {
             if model.isSessionActive {
                 ActiveSessionView()
             } else {
                 SetupView()
             }
         }
+        .tint(.blue)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            Color(nsColor: .windowBackgroundColor)
+                .ignoresSafeArea()
+        }
     }
+}
+
+private enum DurationSelection: Hashable {
+    case preset(Int)
+    case custom
 }
 
 private struct SetupView: View {
     @EnvironmentObject private var model: FocuswardModel
 
-    private let durationColumns = [
-        GridItem(.adaptive(minimum: 88), spacing: 10)
-    ]
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                AppHeader()
-
-                FocuswardCard(
-                    title: "Blocked websites",
-                    subtitle: "A rule also covers every subdomain.",
-                    systemImage: "globe"
-                ) {
-                    HStack(spacing: 10) {
-                        TextField("youtube.com", text: $model.draftDomain)
-                            .textFieldStyle(.roundedBorder)
-                            .onSubmit(model.addDraftDomain)
-
-                        Button("Add", action: model.addDraftDomain)
-                            .buttonStyle(.borderedProminent)
-                            .keyboardShortcut(.return, modifiers: [])
-                    }
-
-                    if model.domains.isEmpty {
-                        HStack(spacing: 14) {
-                            Image(systemName: "plus.circle.dashed")
-                                .font(.title2)
-                                .foregroundStyle(.secondary)
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Your blocklist is empty")
-                                    .fontWeight(.medium)
-                                Text("Add the sites that tend to pull you off course.")
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-                        }
-                        .padding(.vertical, 12)
-                    } else {
-                        VStack(spacing: 0) {
-                            ForEach(model.domains, id: \.self) { domain in
-                                HStack(spacing: 10) {
-                                    Image(systemName: "nosign")
-                                        .foregroundStyle(focuswardGreen)
-                                    Text(domain)
-                                        .textSelection(.enabled)
-                                    Spacer()
-                                    Button {
-                                        model.removeDomain(domain)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .foregroundStyle(.secondary)
-                                    .help("Remove \(domain)")
-                                }
-                                .padding(.vertical, 10)
-
-                                if domain != model.domains.last {
-                                    Divider()
-                                }
-                            }
-                        }
-                    }
+    private var durationSelection: Binding<DurationSelection> {
+        Binding(
+            get: {
+                model.usesCustomDuration
+                    ? .custom
+                    : .preset(model.durationMinutes)
+            },
+            set: { selection in
+                switch selection {
+                case .preset(let minutes):
+                    model.selectDurationPreset(minutes)
+                case .custom:
+                    model.selectCustomDuration()
                 }
-
-                FocuswardCard(
-                    title: "Session length",
-                    subtitle: "Choose a quick duration or make your own.",
-                    systemImage: "timer"
-                ) {
-                    LazyVGrid(columns: durationColumns, spacing: 10) {
-                        ForEach(FocusDuration.presets, id: \.self) { minutes in
-                            DurationChoiceButton(
-                                title: FocusDuration.compactLabel(totalMinutes: minutes),
-                                subtitle: quickDurationSubtitle(minutes),
-                                isSelected: !model.usesCustomDuration && model.durationMinutes == minutes
-                            ) {
-                                model.selectDurationPreset(minutes)
-                            }
-                        }
-
-                        DurationChoiceButton(
-                            title: "Custom",
-                            subtitle: "up to 30d",
-                            isSelected: model.usesCustomDuration,
-                            action: model.selectCustomDuration
-                        )
-                    }
-
-                    if model.usesCustomDuration {
-                        HStack(spacing: 12) {
-                            DurationStepper(
-                                title: "Hours",
-                                value: model.customHours,
-                                range: 0...FocusDuration.maximumHours,
-                                step: 1,
-                                onChange: model.setCustomHours
-                            )
-
-                            DurationStepper(
-                                title: "Minutes",
-                                value: model.customMinutes,
-                                range: 0...55,
-                                step: 5,
-                                isEnabled: model.customHours < FocusDuration.maximumHours,
-                                onChange: model.setCustomMinutes
-                            )
-                        }
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-
-                    HStack {
-                        Label("Selected", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(model.selectedDurationMinutes > 0 ? model.durationSummary : "Choose a duration")
-                            .fontWeight(.semibold)
-                            .foregroundStyle(model.selectedDurationMinutes > 0 ? Color.primary : Color.red)
-                    }
-                    .font(.callout)
-                }
-
-                HStack(spacing: 16) {
-                    Label(model.automationMessage, systemImage: "lock.shield")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-
-                    Spacer(minLength: 16)
-
-                    Button(action: model.startSession) {
-                        Label("Start Session", systemImage: "arrow.right")
-                            .frame(minWidth: 112)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .tint(focuswardGreen)
-                    .disabled(!model.canStartSession)
-                }
-                .padding(.top, 2)
-
-                Text("Everything stays on this Mac. Focusward asks to control Safari, never for an administrator password.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .multilineTextAlignment(.center)
             }
-            .frame(maxWidth: 680)
-            .padding(28)
-            .frame(maxWidth: .infinity)
-        }
+        )
     }
 
-    private func quickDurationSubtitle(_ minutes: Int) -> String {
-        switch minutes {
-        case 25: "sprint"
-        case 45: "deep work"
-        case 60: "one hour"
-        case 120: "long block"
-        case 240: "half day"
-        default: "preset"
+    var body: some View {
+        Form {
+            Section {
+                AppIdentityRow()
+            }
+
+            Section {
+                HStack(spacing: 10) {
+                    TextField("youtube.com", text: $model.draftDomain)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(model.addDraftDomain)
+
+                    Button("Add", action: model.addDraftDomain)
+                        .buttonStyle(.borderedProminent)
+                }
+
+                if model.domains.isEmpty {
+                    Label("No blocked websites", systemImage: "globe")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(model.domains, id: \.self) { domain in
+                        HStack {
+                            Label(domain, systemImage: "globe")
+                            Spacer()
+                            Button(role: .destructive) {
+                                model.removeDomain(domain)
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Remove \(domain)")
+                        }
+                    }
+                }
+            } header: {
+                Text("Blocked Websites")
+            } footer: {
+                Text("Each rule also blocks every subdomain.")
+            }
+
+            Section {
+                Picker("Session length", selection: durationSelection) {
+                    ForEach(FocusDuration.presets, id: \.self) { minutes in
+                        Text(FocusDuration.compactLabel(totalMinutes: minutes))
+                            .tag(DurationSelection.preset(minutes))
+                    }
+                    Text("Custom")
+                        .tag(DurationSelection.custom)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                if model.usesCustomDuration {
+                    HStack(spacing: 24) {
+                        DurationStepper(
+                            title: "Hours",
+                            value: model.customHours,
+                            range: 0...FocusDuration.maximumHours,
+                            step: 1,
+                            onChange: model.setCustomHours
+                        )
+
+                        Divider()
+                            .frame(height: 30)
+
+                        DurationStepper(
+                            title: "Minutes",
+                            value: model.customMinutes,
+                            range: 0...55,
+                            step: 5,
+                            isEnabled: model.customHours < FocusDuration.maximumHours,
+                            onChange: model.setCustomMinutes
+                        )
+                    }
+                }
+
+                LabeledContent {
+                    Text(model.selectedDurationMinutes > 0 ? model.durationSummary : "Choose a duration")
+                        .fontWeight(.medium)
+                        .foregroundStyle(model.selectedDurationMinutes > 0 ? Color.primary : Color.red)
+                } label: {
+                    Label("Selected", systemImage: "clock")
+                }
+            } header: {
+                Text("Session Length")
+            }
+
+            Section {
+                LabeledContent {
+                    Text(model.automationMessage)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                        .lineLimit(2)
+                } label: {
+                    Label("Status", systemImage: "safari")
+                }
+
+                Button(action: model.startSession) {
+                    Label("Start Session", systemImage: "arrow.right.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!model.canStartSession)
+            } footer: {
+                Text("Everything stays on this Mac. Focusward asks to control Safari, never for an administrator password.")
+            }
         }
+        .formStyle(.grouped)
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
     }
 }
 
-private struct AppHeader: View {
+private struct AppIdentityRow: View {
     var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [focuswardGreen, focuswardGreen.opacity(0.70)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                Image(systemName: "shield.lefthalf.filled")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-            .frame(width: 58, height: 58)
-            .shadow(color: focuswardGreen.opacity(0.24), radius: 12, y: 5)
+        HStack(spacing: 14) {
+            Image(systemName: "shield.lefthalf.filled")
+                .font(.system(size: 32, weight: .medium))
+                .foregroundStyle(.blue)
+                .frame(width: 46, height: 46)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text("Focusward")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.title2.weight(.semibold))
                 Text("Make space for what you meant to do.")
                     .foregroundStyle(.secondary)
             }
@@ -228,94 +179,10 @@ private struct AppHeader: View {
             Spacer()
 
             Label("Local only", systemImage: "checkmark.shield")
-                .font(.caption.weight(.medium))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(focuswardGreen.opacity(0.10), in: Capsule())
-                .foregroundStyle(focuswardGreen)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        .padding(.bottom, 4)
-    }
-}
-
-private struct FocuswardCard<Content: View>: View {
-    let title: String
-    let subtitle: String
-    let systemImage: String
-    let content: Content
-
-    init(
-        title: String,
-        subtitle: String,
-        systemImage: String,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.title = title
-        self.subtitle = subtitle
-        self.systemImage = systemImage
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
-                Image(systemName: systemImage)
-                    .font(.title3)
-                    .foregroundStyle(focuswardGreen)
-                    .frame(width: 24)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.headline)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            content
-        }
-        .padding(18)
-        .background(
-            Color(nsColor: .controlBackgroundColor).opacity(0.82),
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.quaternary, lineWidth: 1)
-        }
-    }
-}
-
-private struct DurationChoiceButton: View {
-    let title: String
-    let subtitle: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 3) {
-                Text(title)
-                    .font(.headline)
-                Text(subtitle)
-                    .font(.caption2)
-                    .foregroundStyle(isSelected ? focuswardGreen : .secondary)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(
-                isSelected ? focuswardGreen.opacity(0.13) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 11, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .stroke(isSelected ? focuswardGreen : Color.secondary.opacity(0.20), lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-        .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .padding(.vertical, 4)
     }
 }
 
@@ -327,41 +194,22 @@ private struct DurationStepper: View {
     var isEnabled = true
     let onChange: (Int) -> Void
 
+    private var valueBinding: Binding<Int> {
+        Binding(get: { value }, set: onChange)
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("\(value)")
-                    .font(.title3.monospacedDigit())
-            }
-
+        HStack {
+            Text(title)
+                .foregroundStyle(.secondary)
             Spacer()
-
-            HStack(spacing: 6) {
-                Button {
-                    onChange(max(range.lowerBound, value - step))
-                } label: {
-                    Image(systemName: "minus")
-                        .frame(width: 20, height: 20)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!isEnabled || value <= range.lowerBound)
-
-                Button {
-                    onChange(min(range.upperBound, value + step))
-                } label: {
-                    Image(systemName: "plus")
-                        .frame(width: 20, height: 20)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!isEnabled || value >= range.upperBound)
+            Stepper(value: valueBinding, in: range, step: step) {
+                Text(value.formatted())
+                    .monospacedDigit()
+                    .frame(minWidth: 28, alignment: .trailing)
             }
+            .fixedSize()
         }
-        .padding(12)
-        .frame(maxWidth: .infinity)
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
         .disabled(!isEnabled)
     }
 }
@@ -370,79 +218,61 @@ private struct ActiveSessionView: View {
     @EnvironmentObject private var model: FocuswardModel
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            ScrollView {
-                VStack(spacing: 20) {
-                    HStack {
-                        Label("Focusward", systemImage: "shield.lefthalf.filled")
-                            .font(.headline)
-                        Spacer()
-                        Text("SESSION ACTIVE")
-                            .font(.caption2.weight(.bold))
-                            .tracking(1.2)
-                            .foregroundStyle(focuswardGreen)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(focuswardGreen.opacity(0.10), in: Capsule())
-                    }
+        Form {
+            Section {
+                SessionSummary()
+            }
 
-                    VStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(focuswardGreen.opacity(0.12))
-                            Image(systemName: "shield.fill")
-                                .font(.system(size: 42))
-                                .foregroundStyle(focuswardGreen)
-                        }
-                        .frame(width: 86, height: 86)
+            Section("Session Status") {
+                StatusRow(
+                    title: "Safari",
+                    value: model.automationMessage,
+                    systemImage: "safari"
+                )
+                StatusRow(
+                    title: "Redirected",
+                    value: "\(model.redirectedTabCount) tab\(model.redirectedTabCount == 1 ? "" : "s")",
+                    systemImage: "arrow.turn.down.right"
+                )
+            }
 
-                        VStack(spacing: 7) {
-                            Text("Stay with what matters")
-                                .font(.system(size: 28, weight: .bold, design: .rounded))
-                            Text(remainingText(at: context.date))
-                                .font(.system(size: 48, weight: .medium, design: .monospaced))
-                                .contentTransition(.numericText())
-                                .minimumScaleFactor(0.65)
-                                .lineLimit(1)
-
-                            if let end = model.sessionEnd {
-                                Text("Ends \(end.formatted(date: .abbreviated, time: .shortened))")
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 28)
-                    .background(
-                        Color(nsColor: .controlBackgroundColor).opacity(0.84),
-                        in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(.quaternary, lineWidth: 1)
-                    }
-
-                    HStack(spacing: 12) {
-                        StatusTile(
-                            title: "Safari",
-                            value: model.automationMessage,
-                            systemImage: "safari"
-                        )
-                        StatusTile(
-                            title: "Redirected",
-                            value: "\(model.redirectedTabCount) tab\(model.redirectedTabCount == 1 ? "" : "s")",
-                            systemImage: "arrow.turn.down.right"
-                        )
-                    }
-
-                    EarlyEndCard(now: context.date)
-                }
-                .frame(maxWidth: 680)
-                .padding(28)
-                .frame(maxWidth: .infinity)
+            Section("Early End") {
+                EarlyEndControls()
             }
         }
+        .formStyle(.grouped)
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct SessionSummary: View {
+    @EnvironmentObject private var model: FocuswardModel
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "shield.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(.blue)
+
+            Text("Session Active")
+                .font(.title2.weight(.semibold))
+
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(remainingText(at: context.date))
+                    .font(.system(size: 46, weight: .medium, design: .monospaced))
+                    .contentTransition(.numericText())
+                    .minimumScaleFactor(0.65)
+                    .lineLimit(1)
+            }
+
+            if let end = model.sessionEnd {
+                Text("Ends \(end.formatted(date: .abbreviated, time: .shortened))")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
     }
 
     private func remainingText(at date: Date) -> String {
@@ -462,84 +292,77 @@ private struct ActiveSessionView: View {
     }
 }
 
-private struct StatusTile: View {
+private struct StatusRow: View {
     let title: String
     let value: String
     let systemImage: String
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.title3)
-                .foregroundStyle(focuswardGreen)
-                .frame(width: 26)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.callout.weight(.medium))
-                    .lineLimit(2)
-            }
-            Spacer(minLength: 0)
+        LabeledContent {
+            Text(value)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+                .lineLimit(2)
+        } label: {
+            Label(title, systemImage: systemImage)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 70)
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
-private struct EarlyEndCard: View {
+private struct EarlyEndControls: View {
     @EnvironmentObject private var model: FocuswardModel
-    let now: Date
 
     var body: some View {
-        VStack(spacing: 12) {
-            if let readyAt = model.earlyEndReadyAt {
-                if now >= readyAt {
-                    Text("The cooldown is complete. Ending still requires confirmation.")
-                        .multilineTextAlignment(.center)
-                    HStack {
-                        Button("Keep Session", action: model.cancelEarlyEnd)
-                        Button("End Session", role: .destructive, action: model.confirmEarlyEnd)
+        if let readyAt = model.earlyEndReadyAt {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                if context.date >= readyAt {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("The cooldown is complete. Ending still requires confirmation.")
+                            .foregroundStyle(.secondary)
+
+                        HStack {
+                            Button("Keep Session", action: model.cancelEarlyEnd)
+                            Spacer()
+                            Button("End Session", role: .destructive, action: model.confirmEarlyEnd)
+                        }
                     }
                 } else {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Early-end cooldown")
-                                .fontWeight(.semibold)
-                            Text("Available in \(cooldownText(until: readyAt))")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Early-end cooldown")
+                                    .fontWeight(.medium)
+                                Text("Available in \(cooldownText(until: readyAt, now: context.date))")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("Cancel Request", action: model.cancelEarlyEnd)
                         }
-                        Spacer()
-                        Button("Cancel Request", action: model.cancelEarlyEnd)
+
+                        ProgressView(
+                            timerInterval: readyAt.addingTimeInterval(-90)...readyAt,
+                            countsDown: false
+                        )
+                        .progressViewStyle(.linear)
+                        .labelsHidden()
                     }
-                    ProgressView(
-                        value: max(0, 90 - readyAt.timeIntervalSince(now)),
-                        total: 90
-                    )
-                    .tint(focuswardGreen)
-                }
-            } else {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Need to stop?")
-                            .fontWeight(.semibold)
-                        Text("Early ending takes 90 seconds and can be canceled.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("Request Early End", action: model.requestEarlyEnd)
                 }
             }
+        } else {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Need to stop?")
+                        .fontWeight(.medium)
+                    Text("Early ending takes 90 seconds and can be canceled.")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Request Early End", action: model.requestEarlyEnd)
+            }
         }
-        .padding(16)
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
     }
 
-    private func cooldownText(until date: Date) -> String {
+    private func cooldownText(until date: Date, now: Date) -> String {
         "\(max(0, Int(ceil(date.timeIntervalSince(now)))))s"
     }
 }
@@ -571,23 +394,32 @@ struct MenuBarContentView: View {
 
             Divider()
 
-            Button("Open Focusward") {
+            Button {
                 openWindow(id: "main")
                 NSApp.activate(ignoringOtherApps: true)
+            } label: {
+                Label("Open Focusward", systemImage: "macwindow")
             }
 
             if model.isSessionActive {
                 if model.earlyEndReadyAt == nil {
-                    Button("Request Early End", action: model.requestEarlyEnd)
+                    Button(action: model.requestEarlyEnd) {
+                        Label("Request Early End", systemImage: "hourglass")
+                    }
                 } else {
-                    Button("Cancel Early-End Request", action: model.cancelEarlyEnd)
+                    Button(action: model.cancelEarlyEnd) {
+                        Label("Cancel Early-End Request", systemImage: "xmark.circle")
+                    }
                 }
             }
 
-            Button("Quit Focusward") {
+            Button {
                 NSApp.terminate(nil)
+            } label: {
+                Label("Quit Focusward", systemImage: "power")
             }
         }
+        .tint(.blue)
         .padding(14)
         .frame(width: 280)
     }
