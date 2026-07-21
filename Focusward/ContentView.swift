@@ -20,31 +20,13 @@ struct ContentView: View {
     }
 }
 
-private enum DurationSelection: Hashable {
-    case preset(Int)
-    case custom
-}
-
 private struct SetupView: View {
     @EnvironmentObject private var model: FocuswardModel
 
-    private var durationSelection: Binding<DurationSelection> {
-        Binding(
-            get: {
-                model.usesCustomDuration
-                    ? .custom
-                    : .preset(model.durationMinutes)
-            },
-            set: { selection in
-                switch selection {
-                case .preset(let minutes):
-                    model.selectDurationPreset(minutes)
-                case .custom:
-                    model.selectCustomDuration()
-                }
-            }
-        )
-    }
+    private let durationColumns = Array(
+        repeating: GridItem(.flexible(minimum: 68), spacing: 8),
+        count: 6
+    )
 
     var body: some View {
         Form {
@@ -88,17 +70,24 @@ private struct SetupView: View {
             }
 
             Section {
-                Picker("Session length", selection: durationSelection) {
+                LazyVGrid(columns: durationColumns, spacing: 8) {
                     ForEach(FocusDuration.presets, id: \.self) { minutes in
-                        Text(FocusDuration.compactLabel(totalMinutes: minutes))
-                            .tag(DurationSelection.preset(minutes))
+                        DurationChoiceButton(
+                            title: FocusDuration.compactLabel(totalMinutes: minutes),
+                            subtitle: quickDurationSubtitle(minutes),
+                            isSelected: !model.usesCustomDuration && model.durationMinutes == minutes
+                        ) {
+                            model.selectDurationPreset(minutes)
+                        }
                     }
-                    Text("Custom")
-                        .tag(DurationSelection.custom)
+
+                    DurationChoiceButton(
+                        title: "Custom",
+                        subtitle: "up to 30d",
+                        isSelected: model.usesCustomDuration,
+                        action: model.selectCustomDuration
+                    )
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .tint(.blue)
 
                 if model.usesCustomDuration {
                     VStack(spacing: 10) {
@@ -158,6 +147,17 @@ private struct SetupView: View {
         }
         .formStyle(.grouped)
     }
+
+    private func quickDurationSubtitle(_ minutes: Int) -> String {
+        switch minutes {
+        case 25: "sprint"
+        case 45: "deep work"
+        case 60: "one hour"
+        case 120: "long block"
+        case 240: "half day"
+        default: "preset"
+        }
+    }
 }
 
 private struct AppIdentityRow: View {
@@ -182,6 +182,41 @@ private struct AppIdentityRow: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
+    }
+}
+
+private struct DurationChoiceButton: View {
+    let title: String
+    let subtitle: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Text(title)
+                    .font(.headline)
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .background(
+            isSelected ? Color.primary.opacity(0.06) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(
+                    isSelected ? Color.blue : Color.secondary.opacity(0.22),
+                    lineWidth: isSelected ? 1.5 : 1
+                )
+        }
     }
 }
 
