@@ -255,12 +255,13 @@ private struct DurationStepper: View {
 
             Spacer()
 
-            TextField(title, value: valueBinding, format: .number)
+            TextField("", value: valueBinding, format: .number)
                 .textFieldStyle(.plain)
                 .font(.headline.monospacedDigit())
                 .multilineTextAlignment(.trailing)
                 .frame(width: 44)
                 .focusEffectDisabled()
+                .accessibilityLabel(title)
 
             VStack(spacing: 0) {
                 Button {

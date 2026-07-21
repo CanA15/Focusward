@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isDuplicateInstance = false
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        guard !isRunningTestsOrPreviews else { return }
         guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return }
 
         let currentPID = ProcessInfo.processInfo.processIdentifier
@@ -96,5 +97,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             openMainWindow?()
         }
+    }
+
+    private var isRunningTestsOrPreviews: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return NSClassFromString("XCTestCase") != nil
+            || environment.keys.contains { $0.hasPrefix("XCTest") }
+            || environment["XCInjectBundleInto"] != nil
+            || environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
     }
 }
