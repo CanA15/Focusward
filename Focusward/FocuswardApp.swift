@@ -13,10 +13,8 @@ struct FocuswardApp: App {
                 .frame(
                     minWidth: 640,
                     idealWidth: 720,
-                    maxWidth: 900,
                     minHeight: 680,
-                    idealHeight: 780,
-                    maxHeight: 960
+                    idealHeight: 780
                 )
                 .onOpenURL { _ in
                     NSApp.activate(ignoringOtherApps: true)
