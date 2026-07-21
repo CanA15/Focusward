@@ -256,10 +256,20 @@ private struct DurationStepper: View {
                     .foregroundStyle(.secondary)
 
                 TextField(title, value: valueBinding, format: .number)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
                     .font(.title3.monospacedDigit())
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 64)
+                    .multilineTextAlignment(.leading)
+                    .frame(width: 52, alignment: .leading)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(
+                        Color.primary.opacity(0.05),
+                        in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+                    }
             }
 
             Spacer()
@@ -447,8 +457,8 @@ private struct EarlyEndControls: View {
 }
 
 struct MenuBarContentView: View {
-    @Environment(\.openWindow) private var openWindow
     @EnvironmentObject private var model: FocuswardModel
+    let showMainWindow: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -473,10 +483,7 @@ struct MenuBarContentView: View {
 
             Divider()
 
-            Button {
-                openWindow(id: "main")
-                NSApp.activate(ignoringOtherApps: true)
-            } label: {
+            Button(action: showMainWindow) {
                 Label("Open Focusward", systemImage: "macwindow")
             }
 

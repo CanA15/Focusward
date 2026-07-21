@@ -8,27 +8,38 @@ struct FocuswardApp: App {
 
     var body: some Scene {
         Window("Focusward", id: "main") {
-            ContentView()
-                .environmentObject(model)
-                .frame(
-                    minWidth: 640,
-                    idealWidth: 720,
-                    minHeight: 680,
-                    idealHeight: 780
-                )
-                .onOpenURL { _ in
-                    NSApp.activate(ignoringOtherApps: true)
-                    NSApp.windows.first(where: { $0.canBecomeKey })?.makeKeyAndOrderFront(nil)
-                }
+            MainWindowContent(model: model, appDelegate: appDelegate)
         }
         .defaultSize(width: 720, height: 780)
 
         MenuBarExtra {
-            MenuBarContentView()
+            MenuBarContentView(showMainWindow: appDelegate.showMainWindow)
                 .environmentObject(model)
         } label: {
             Image(systemName: model.isSessionActive ? "shield.fill" : "shield")
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+private struct MainWindowContent: View {
+    @Environment(\.openWindow) private var openWindow
+    @ObservedObject var model: FocuswardModel
+    let appDelegate: AppDelegate
+
+    var body: some View {
+        ContentView()
+            .environmentObject(model)
+            .frame(
+                minWidth: 640,
+                idealWidth: 720,
+                minHeight: 680,
+                idealHeight: 780
+            )
+            .onAppear {
+                appDelegate.openMainWindow = {
+                    openWindow(id: "main")
+                }
+            }
     }
 }
