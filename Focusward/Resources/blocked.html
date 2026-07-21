@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; navigate-to focusward:">
+  <title>Protected by Focusward</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      background: #0d1110;
+      color: #f4f7f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 50% 10%, rgba(77, 180, 124, .18), transparent 36rem),
+        #0d1110;
+    }
+    main {
+      width: min(42rem, calc(100vw - 3rem));
+      padding: 3rem;
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 2rem;
+      background: rgba(255, 255, 255, .045);
+      box-shadow: 0 2rem 7rem rgba(0, 0, 0, .35);
+      text-align: center;
+    }
+    .shield {
+      display: grid;
+      width: 5rem;
+      height: 5rem;
+      margin: 0 auto 1.5rem;
+      place-items: center;
+      border-radius: 1.5rem;
+      background: #45a873;
+      color: #07110b;
+      font-size: 2.4rem;
+      font-weight: 800;
+    }
+    h1 { margin: 0; font-size: clamp(2rem, 6vw, 3.6rem); letter-spacing: -.05em; }
+    .domain { margin: .8rem 0 2.2rem; color: #aebbb3; font-size: 1.05rem; }
+    .timer { margin: 0 0 1rem; font: 600 clamp(2.5rem, 9vw, 5rem)/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .message { max-width: 30rem; margin: 0 auto 2rem; color: #c9d3cd; line-height: 1.6; }
+    a {
+      display: inline-block;
+      padding: .8rem 1.1rem;
+      border: 1px solid rgba(255, 255, 255, .18);
+      border-radius: .8rem;
+      color: inherit;
+      text-decoration: none;
+    }
+    a:hover { background: rgba(255, 255, 255, .08); }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="shield" aria-hidden="true">F</div>
+    <h1>Stay with what matters.</h1>
+    <p class="domain" id="domain">This site is blocked during your session.</p>
+    <p class="timer" id="timer">--:--</p>
+    <p class="message" id="message">Focusward replaced this tab locally. Nothing from this shield page is hosted or downloaded.</p>
+    <a href="focusward://open">Open Focusward</a>
+  </main>
+  <script>
+    const params = new URLSearchParams(location.hash.slice(1));
+    const end = Number(params.get("end")) * 1000;
+    const host = params.get("host");
+    const timer = document.getElementById("timer");
+    const domain = document.getElementById("domain");
+    const message = document.getElementById("message");
+
+    if (host) domain.textContent = `${host} is outside this focus session.`;
+
+    function updateTimer() {
+      const remaining = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      const minutes = Math.floor(remaining / 60);
+      const seconds = remaining % 60;
+      timer.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+      if (remaining === 0) {
+        message.textContent = "The session has finished. You can navigate somewhere else when you are ready.";
+      }
+    }
+
+    updateTimer();
+    setInterval(updateTimer, 1000);
+  </script>
+</body>
+</html>
