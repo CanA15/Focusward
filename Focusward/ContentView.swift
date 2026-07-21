@@ -249,56 +249,53 @@ private struct DurationStepper: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                TextField(title, value: valueBinding, format: .number)
-                    .textFieldStyle(.plain)
-                    .font(.title3.monospacedDigit())
-                    .multilineTextAlignment(.leading)
-                    .frame(width: 52, alignment: .leading)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(
-                        Color.primary.opacity(0.05),
-                        in: RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
-                    }
-            }
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.headline)
 
             Spacer()
 
-            HStack(spacing: 6) {
-                Button {
-                    onChange(max(range.lowerBound, value - step))
-                } label: {
-                    Image(systemName: "minus")
-                        .frame(width: 20, height: 20)
-                }
-                .buttonStyle(.bordered)
-                .buttonRepeatBehavior(.enabled)
-                .disabled(!isEnabled || value <= range.lowerBound)
+            TextField(title, value: valueBinding, format: .number)
+                .textFieldStyle(.plain)
+                .font(.headline.monospacedDigit())
+                .multilineTextAlignment(.trailing)
+                .frame(width: 44)
+                .focusEffectDisabled()
 
+            VStack(spacing: 0) {
                 Button {
                     onChange(min(range.upperBound, value + step))
                 } label: {
                     Image(systemName: "plus")
-                        .frame(width: 20, height: 20)
+                        .frame(width: 24, height: 18)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
                 .buttonRepeatBehavior(.enabled)
                 .disabled(!isEnabled || value >= range.upperBound)
+
+                Button {
+                    onChange(max(range.lowerBound, value - step))
+                } label: {
+                    Image(systemName: "minus")
+                        .frame(width: 24, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .buttonRepeatBehavior(.enabled)
+                .disabled(!isEnabled || value <= range.lowerBound)
             }
         }
-        .padding(12)
-        .frame(minWidth: 190, maxWidth: .infinity)
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 12)
+        .frame(minWidth: 190, maxWidth: .infinity, minHeight: 50)
+        .background(
+            Color.primary.opacity(0.03),
+            in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(Color.secondary.opacity(0.22), lineWidth: 1)
+        }
         .disabled(!isEnabled)
     }
 }
