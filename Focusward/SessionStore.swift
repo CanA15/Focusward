@@ -6,6 +6,7 @@ final class SessionStore {
         static let preferredDurationMinutes = "preferredDurationMinutes"
         static let sessionEnd = "sessionEnd"
         static let earlyEndReadyAt = "earlyEndReadyAt"
+        static let earlyEndRemainingSeconds = "earlyEndRemainingSeconds"
     }
 
     private let defaults: UserDefaults
@@ -42,9 +43,26 @@ final class SessionStore {
         set { set(newValue, forKey: Key.earlyEndReadyAt) }
     }
 
+    var earlyEndRemainingSeconds: TimeInterval? {
+        get {
+            guard defaults.object(forKey: Key.earlyEndRemainingSeconds) != nil else {
+                return nil
+            }
+            return max(0, defaults.double(forKey: Key.earlyEndRemainingSeconds))
+        }
+        set {
+            if let newValue {
+                defaults.set(max(0, newValue), forKey: Key.earlyEndRemainingSeconds)
+            } else {
+                defaults.removeObject(forKey: Key.earlyEndRemainingSeconds)
+            }
+        }
+    }
+
     func clearSession() {
         sessionEnd = nil
         earlyEndReadyAt = nil
+        earlyEndRemainingSeconds = nil
     }
 
     private func date(forKey key: String) -> Date? {

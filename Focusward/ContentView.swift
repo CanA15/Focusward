@@ -176,9 +176,9 @@ private struct SetupView: View {
 private struct AppIdentityRow: View {
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: "shield.lefthalf.filled")
-                .font(.system(size: 32, weight: .medium))
-                .foregroundStyle(.secondary)
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .scaledToFit()
                 .frame(width: 46, height: 46)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -379,9 +379,10 @@ private struct SessionSummary: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: "shield.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 56, height: 56)
 
             Text("Session Active")
                 .font(.title2.weight(.semibold))
@@ -441,9 +442,9 @@ private struct EarlyEndControls: View {
     @EnvironmentObject private var model: FocuswardModel
 
     var body: some View {
-        if let readyAt = model.earlyEndReadyAt {
+        if model.hasEarlyEndRequest {
             TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { context in
-                if context.date >= readyAt {
+                if model.earlyEndIsReady(at: context.date) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("The cooldown is complete. Ending still requires confirmation.")
                             .foregroundStyle(.secondary)
@@ -460,17 +461,24 @@ private struct EarlyEndControls: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Early-end cooldown")
                                     .fontWeight(.medium)
-                                Text("Available in \(cooldownText(until: readyAt, now: context.date))")
+                                Text("Estimated wait · \(model.earlyEndDisplayText(at: context.date))")
                                     .foregroundStyle(.secondary)
+                                if !model.isEarlyEndTimerRunning {
+                                    Text("Paused until this window is focused")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                             Spacer()
                             Button("Cancel Request", action: model.cancelEarlyEnd)
                         }
 
-                        ProgressView(value: cooldownProgress(until: readyAt, now: context.date))
-                        .progressViewStyle(.linear)
-                        .labelsHidden()
-                        .tint(.blue)
+                        ProgressView(value: model.earlyEndProgress(at: context.date))
+                            .progressViewStyle(.linear)
+                            .labelsHidden()
+                            .tint(.blue)
+                            .accessibilityLabel("Early-end request in progress")
+                            .accessibilityValue("Waiting")
                     }
                 }
             }
@@ -479,7 +487,7 @@ private struct EarlyEndControls: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Need to stop?")
                         .fontWeight(.medium)
-                    Text("Early ending takes 90 seconds and can be canceled.")
+                    Text("Early ending includes a focus cooldown and can be canceled.")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -488,13 +496,6 @@ private struct EarlyEndControls: View {
         }
     }
 
-    private func cooldownText(until date: Date, now: Date) -> String {
-        "\(max(0, Int(ceil(date.timeIntervalSince(now)))))s"
-    }
-
-    private func cooldownProgress(until date: Date, now: Date) -> Double {
-        min(max(1 - (date.timeIntervalSince(now) / 90), 0), 1)
-    }
 }
 
 struct MenuBarContentView: View {
@@ -529,7 +530,7 @@ struct MenuBarContentView: View {
             }
 
             if model.isSessionActive {
-                if model.earlyEndReadyAt == nil {
+                if !model.hasEarlyEndRequest {
                     Button(action: model.requestEarlyEnd) {
                         Label("Request Early End", systemImage: "hourglass")
                     }

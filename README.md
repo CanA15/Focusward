@@ -33,7 +33,7 @@ To try a session:
 3. Choose a duration and start the session.
 4. Visit the domain in any Safari tab. Focusward replaces that tab with its bundled local shield page.
 
-During an active session, ordinary Quit starts a cancelable 90-second early-end flow. Force Quit, Activity Monitor, process termination, and reboot remain intentional emergency exits.
+During an active session, ordinary Quit starts a cancelable early-end flow that advances only while the Focusward window is in front. Force Quit, Activity Monitor, process termination, and reboot remain intentional emergency exits.
 
 Command-line build:
 

@@ -71,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = "A Focusward session is active"
-        alert.informativeText = "Ordinary quitting is paused until the session ends. You can begin a cancelable 90-second early-end request instead."
+        alert.informativeText = "Ordinary quitting is paused until the session ends. You can begin a cancelable early-end request that advances only while Focusward is in front."
         alert.addButton(withTitle: "Stay Focused")
         alert.addButton(withTitle: "Request Early End")
 

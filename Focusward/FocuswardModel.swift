@@ -1,6 +1,44 @@
 import AppKit
 import Foundation
 
+struct EarlyEndCountdown {
+    static let duration: TimeInterval = 90
+
+    private(set) var elapsed: TimeInterval
+    private(set) var resumedAt: Date?
+
+    init(remaining: TimeInterval = duration) {
+        elapsed = Self.duration - min(max(remaining, 0), Self.duration)
+    }
+
+    var isRunning: Bool { resumedAt != nil }
+
+    mutating func resume(at date: Date) {
+        guard resumedAt == nil, !isReady(at: date) else { return }
+        resumedAt = date
+    }
+
+    mutating func pause(at date: Date) {
+        elapsed = elapsedTime(at: date)
+        resumedAt = nil
+    }
+
+    func elapsedTime(at date: Date) -> TimeInterval {
+        min(
+            Self.duration,
+            elapsed + max(0, resumedAt.map { date.timeIntervalSince($0) } ?? 0)
+        )
+    }
+
+    func remainingTime(at date: Date) -> TimeInterval {
+        max(0, Self.duration - elapsedTime(at: date))
+    }
+
+    func isReady(at date: Date) -> Bool {
+        remainingTime(at: date) <= 0
+    }
+}
+
 @MainActor
 final class FocuswardModel: ObservableObject {
     static let shared = FocuswardModel()
@@ -13,12 +51,16 @@ final class FocuswardModel: ObservableObject {
     @Published private(set) var customMinutes = 0
     @Published private(set) var sessionEnd: Date?
     @Published private(set) var earlyEndReadyAt: Date?
+    @Published private(set) var isEarlyEndTimerRunning = false
     @Published private(set) var automationMessage = "Ready"
     @Published private(set) var redirectedTabCount = 0
 
     private let store: SessionStore
     private let safari: SafariAutomation
     private var monitorTask: Task<Void, Never>?
+    private var earlyEndCountdown: EarlyEndCountdown?
+    private var isMainWindowFocused = false
+    private var earlyEndDisplaySeed = UInt64.random(in: .min ... .max)
 
     private init(
         store: SessionStore = SessionStore(),
@@ -38,9 +80,17 @@ final class FocuswardModel: ObservableObject {
             self.customMinutes = components.minutes
         }
 
-        if let storedEnd = store.sessionEnd, storedEnd > Date() {
+        let now = Date()
+        if let storedEnd = store.sessionEnd, storedEnd > now {
             self.sessionEnd = storedEnd
-            self.earlyEndReadyAt = store.earlyEndReadyAt
+            let remaining = store.earlyEndRemainingSeconds
+                ?? store.earlyEndReadyAt.map {
+                    min(max($0.timeIntervalSince(now), 0), EarlyEndCountdown.duration)
+                }
+            if let remaining {
+                self.earlyEndCountdown = EarlyEndCountdown(remaining: remaining)
+                self.earlyEndReadyAt = now.addingTimeInterval(remaining)
+            }
             startMonitor()
         } else {
             store.clearSession()
@@ -66,6 +116,10 @@ final class FocuswardModel: ObservableObject {
 
     var canStartSession: Bool {
         !domains.isEmpty && selectedDurationMinutes > 0
+    }
+
+    var hasEarlyEndRequest: Bool {
+        earlyEndCountdown != nil
     }
 
     func addDraftDomain() {
@@ -128,29 +182,79 @@ final class FocuswardModel: ObservableObject {
 
         let end = Date().addingTimeInterval(TimeInterval(selectedDurationMinutes * 60))
         sessionEnd = end
+        earlyEndCountdown = nil
         earlyEndReadyAt = nil
+        isEarlyEndTimerRunning = false
         redirectedTabCount = 0
         automationMessage = "Starting Safari monitoring…"
         store.sessionEnd = end
         store.earlyEndReadyAt = nil
+        store.earlyEndRemainingSeconds = nil
         startMonitor()
     }
 
     func requestEarlyEnd() {
-        guard isSessionActive, earlyEndReadyAt == nil else { return }
-        let readyAt = Date().addingTimeInterval(90)
-        earlyEndReadyAt = readyAt
-        store.earlyEndReadyAt = readyAt
+        guard isSessionActive, earlyEndCountdown == nil else { return }
+        let now = Date()
+        var countdown = EarlyEndCountdown()
+        if isMainWindowFocused {
+            countdown.resume(at: now)
+        }
+        earlyEndCountdown = countdown
+        earlyEndDisplaySeed = UInt64.random(in: .min ... .max)
+        isEarlyEndTimerRunning = countdown.isRunning
+        persistEarlyEndState(at: now, updateProjection: true)
     }
 
     func cancelEarlyEnd() {
+        earlyEndCountdown = nil
         earlyEndReadyAt = nil
+        isEarlyEndTimerRunning = false
         store.earlyEndReadyAt = nil
+        store.earlyEndRemainingSeconds = nil
     }
 
     func confirmEarlyEnd() {
-        guard let earlyEndReadyAt, Date() >= earlyEndReadyAt else { return }
+        guard earlyEndCountdown?.isReady(at: Date()) == true else { return }
         finishSession(message: "Session ended early")
+    }
+
+    func setMainWindowFocused(_ focused: Bool) {
+        guard focused != isMainWindowFocused else { return }
+        let now = Date()
+
+        if focused {
+            earlyEndCountdown?.resume(at: now)
+        } else {
+            earlyEndCountdown?.pause(at: now)
+        }
+
+        isMainWindowFocused = focused
+        isEarlyEndTimerRunning = earlyEndCountdown?.isRunning == true
+        persistEarlyEndState(at: now, updateProjection: true)
+    }
+
+    func earlyEndIsReady(at date: Date) -> Bool {
+        earlyEndCountdown?.isReady(at: date) == true
+    }
+
+    func earlyEndProgress(at date: Date) -> Double {
+        (earlyEndCountdown?.elapsedTime(at: date) ?? 0) / EarlyEndCountdown.duration
+    }
+
+    func earlyEndDisplayText(at date: Date) -> String {
+        guard let countdown = earlyEndCountdown else { return "" }
+        let bucket = UInt64(countdown.elapsedTime(at: date) / 4)
+        var mixed = bucket &+ earlyEndDisplaySeed &+ 0x9E3779B97F4A7C15
+        mixed = (mixed ^ (mixed >> 30)) &* 0xBF58476D1CE4E5B9
+        mixed = (mixed ^ (mixed >> 27)) &* 0x94D049BB133111EB
+        mixed ^= mixed >> 31
+
+        let displayedSeconds = 25 + Int(mixed % 310)
+        if displayedSeconds >= 60 {
+            return String(format: "%dm %02ds", displayedSeconds / 60, displayedSeconds % 60)
+        }
+        return "\(displayedSeconds)s"
     }
 
     private func startMonitor() {
@@ -158,6 +262,7 @@ final class FocuswardModel: ObservableObject {
         monitorTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
+                self.persistEarlyEndState(at: Date())
                 self.enforceCurrentTabs()
                 try? await Task.sleep(for: .milliseconds(500))
             }
@@ -215,7 +320,9 @@ final class FocuswardModel: ObservableObject {
         monitorTask?.cancel()
         monitorTask = nil
         sessionEnd = nil
+        earlyEndCountdown = nil
         earlyEndReadyAt = nil
+        isEarlyEndTimerRunning = false
         store.clearSession()
         automationMessage = message
     }
@@ -223,5 +330,16 @@ final class FocuswardModel: ObservableObject {
     private func persistPreferredDuration() {
         guard selectedDurationMinutes > 0 else { return }
         store.preferredDurationMinutes = selectedDurationMinutes
+    }
+
+    private func persistEarlyEndState(at date: Date, updateProjection: Bool = false) {
+        guard let countdown = earlyEndCountdown else { return }
+        let remaining = countdown.remainingTime(at: date)
+        let projectedReadyAt = date.addingTimeInterval(remaining)
+        store.earlyEndRemainingSeconds = remaining
+        store.earlyEndReadyAt = projectedReadyAt
+        if updateProjection {
+            earlyEndReadyAt = projectedReadyAt
+        }
     }
 }
