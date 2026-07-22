@@ -15,7 +15,6 @@
       --secondary: #6e6e73;
       --border: rgba(0, 0, 0, .08);
       --shadow: rgba(0, 0, 0, .10);
-      --icon-surface: rgba(118, 118, 128, .10);
       --blue: #007aff;
       --blue-hover: #006ee6;
     }
@@ -27,7 +26,6 @@
         --secondary: #aeaeb2;
         --border: rgba(255, 255, 255, .10);
         --shadow: rgba(0, 0, 0, .35);
-        --icon-surface: rgba(118, 118, 128, .22);
         --blue: #0a84ff;
         --blue-hover: #409cff;
       }
@@ -60,11 +58,14 @@
       margin: 0 auto 1.5rem;
       place-items: center;
       border-radius: 1.1rem;
-      border: 1px solid var(--border);
-      background: var(--icon-surface);
-      color: var(--text);
-      font-size: 2rem;
-      font-weight: 700;
+      border: 1px solid rgba(0, 0, 0, .08);
+      background: #fbfaf7;
+      box-shadow: 0 .35rem 1rem rgba(0, 0, 0, .08);
+    }
+    .shield svg {
+      display: block;
+      width: 3.75rem;
+      height: 3.75rem;
     }
     h1 {
       margin: 0;
@@ -107,7 +108,12 @@
 </head>
 <body>
   <main>
-    <div class="shield" aria-hidden="true">F</div>
+    <div class="shield" aria-hidden="true">
+      <svg viewBox="0 0 64 64" role="presentation">
+        <path d="M14 45V35c0-10 8-18 18-18s18 8 18 18v10" fill="none" stroke="#292a2e" stroke-width="8" stroke-linecap="round"/>
+        <path d="m29 29 8 8-8 8" fill="none" stroke="#536b93" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
     <h1>Stay with what matters.</h1>
     <p class="domain" id="domain">This site is blocked during your session.</p>
     <p class="timer" id="timer">--:--</p>
