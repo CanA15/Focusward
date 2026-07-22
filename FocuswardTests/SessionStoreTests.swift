@@ -76,12 +76,14 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "CFBundleIconFile") as? String, "AppIcon")
     }
 
-    func testShieldPageUsesInlineFocuswardMark() throws {
+    func testShieldPageUsesBundledFocuswardLogo() throws {
         let url = try XCTUnwrap(Bundle.main.url(forResource: "blocked", withExtension: "html"))
         let html = try String(contentsOf: url, encoding: .utf8)
 
-        XCTAssertTrue(html.contains("<svg viewBox=\"0 0 64 64\""))
+        XCTAssertNotNil(Bundle.main.url(forResource: "FocuswardLogo", withExtension: "png"))
+        XCTAssertTrue(html.contains("<img src=\"FocuswardLogo.png\""))
+        XCTAssertTrue(html.contains("img-src 'self'"))
         XCTAssertFalse(html.contains(">F</div>"))
-        XCTAssertFalse(html.contains("<img"))
+        XCTAssertFalse(html.contains("<svg"))
     }
 }

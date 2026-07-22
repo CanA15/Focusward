@@ -20,6 +20,7 @@
 		B10000000000000000000011 /* FocusDuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023 /* FocusDuration.swift */; };
 		B10000000000000000000012 /* FocusDurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000024 /* FocusDurationTests.swift */; };
 		B10000000000000000000013 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000025 /* Assets.xcassets */; };
+		B10000000000000000000014 /* FocuswardLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000026 /* FocuswardLogo.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,6 +50,7 @@
 		A10000000000000000000023 /* FocusDuration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusDuration.swift; sourceTree = "<group>"; };
 		A10000000000000000000024 /* FocusDurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusDurationTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000025 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A10000000000000000000026 /* FocuswardLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = FocuswardLogo.png; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -109,6 +111,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000018 /* blocked.html */,
+				A10000000000000000000026 /* FocuswardLogo.png */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -201,6 +204,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B10000000000000000000008 /* blocked.html in Resources */,
+				B10000000000000000000014 /* FocuswardLogo.png in Resources */,
 				B10000000000000000000013 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
