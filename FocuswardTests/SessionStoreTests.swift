@@ -49,7 +49,10 @@ final class SessionStoreTests: XCTestCase {
 
     func testEarlyEndDisplayBalancesShortAndLongEstimates() {
         let states = (0 ..< 400).map {
-            EarlyEndDisplayState.randomized(elapsedTime: TimeInterval($0 * 4), seed: 42)
+            EarlyEndDisplayState.randomized(
+                elapsedTime: TimeInterval($0) * EarlyEndDisplayState.updateInterval,
+                seed: 42
+            )
         }
 
         XCTAssertGreaterThan(states.count { $0.displayedSeconds < 60 }, 70)

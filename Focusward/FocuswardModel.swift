@@ -41,6 +41,7 @@ struct EarlyEndCountdown {
 
 struct EarlyEndDisplayState {
     static let maximumDisplayedSeconds = 330
+    static let updateInterval: TimeInterval = 2
     private static let durationBands = [5 ... 44, 45 ... 89, 90 ... 179, 180 ... 330]
 
     let displayedSeconds: Int
@@ -55,7 +56,7 @@ struct EarlyEndDisplayState {
     }
 
     static func randomized(elapsedTime: TimeInterval, seed: UInt64) -> Self {
-        let bucket = UInt64(max(0, elapsedTime) / 4)
+        let bucket = UInt64(max(0, elapsedTime) / updateInterval)
         let firstMix = mix(bucket &+ seed &+ 0x9E3779B97F4A7C15)
         let band = durationBands[Int(firstMix % UInt64(durationBands.count))]
         let seconds = band.lowerBound + Int(mix(firstMix) % UInt64(band.count))

@@ -478,7 +478,7 @@ private struct EarlyEndControls: View {
                             .progressViewStyle(.linear)
                             .labelsHidden()
                             .tint(.blue)
-                            .animation(.easeInOut(duration: 0.8), value: display.progress)
+                            .animation(.easeInOut(duration: 0.5), value: display.progress)
                             .accessibilityLabel("Early-end request in progress")
                             .accessibilityValue("Waiting")
                     }
