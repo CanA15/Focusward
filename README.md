@@ -24,7 +24,7 @@ Requirements:
 - macOS 14 or later
 - Xcode 26 or later
 
-### Install from this repository
+### Install like a normal macOS app
 
 Quit Focusward if it is already running, then run:
 
@@ -32,9 +32,15 @@ Quit Focusward if it is already running, then run:
 ./install.sh
 ```
 
-The installer builds a native Release copy in a temporary directory and installs it at `~/Applications/Focusward.app`. It requires no administrator password, removes its temporary build and any regenerable Debug or Release app bundles under this repository's `build` directory, and registers only the installed copy with macOS so Spotlight does not show duplicate builds.
+Focusward builds a universal Release app locally, creates `dist/Focusward.dmg`, and opens the disk image. Drag **Focusward** onto the **Applications** shortcut in that Finder window. The installed app then lives at `/Applications/Focusward.app`, just like a conventional Mac app. Finder may request an administrator password when copying into the system Applications folder.
 
-To update Focusward later, pull the latest source and run `./install.sh` again. The previous installed copy is kept until the replacement has built and passed code-signature verification.
+No Apple Developer account, persistent root helper, backend, or network connection is used. The disk image and app are built and signed locally. Finder's normal one-time administrator authorization may still be required to write to `/Applications`. To update later, pull the latest source, run `./install.sh` again, and replace the existing app when Finder asks.
+
+Use `./install.sh --no-open` to create the disk image without opening Finder. The generated `dist/` directory is ignored by Git and should not be committed.
+
+### Debug, Release, and generated builds
+
+Xcode's **Debug** and **Release** configurations are project settings and should remain in the repository. Debug is used while developing and running tests; Release is optimized for the app placed in the DMG. The actual generated apps and intermediate files under `build/`, `DerivedData/`, and `dist/` are local build products. They are ignored by Git, can be deleted safely, and are recreated when needed.
 
 ### Run from Xcode
 
