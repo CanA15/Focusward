@@ -39,6 +39,37 @@ struct EarlyEndCountdown {
     }
 }
 
+struct EarlyEndDisplayState {
+    static let maximumDisplayedSeconds = 330
+    private static let durationBands = [5 ... 44, 45 ... 89, 90 ... 179, 180 ... 330]
+
+    let displayedSeconds: Int
+
+    var text: String {
+        guard displayedSeconds >= 60 else { return "\(displayedSeconds)s" }
+        return String(format: "%dm %02ds", displayedSeconds / 60, displayedSeconds % 60)
+    }
+
+    var progress: Double {
+        1 - Double(displayedSeconds) / Double(Self.maximumDisplayedSeconds)
+    }
+
+    static func randomized(elapsedTime: TimeInterval, seed: UInt64) -> Self {
+        let bucket = UInt64(max(0, elapsedTime) / 4)
+        let firstMix = mix(bucket &+ seed &+ 0x9E3779B97F4A7C15)
+        let band = durationBands[Int(firstMix % UInt64(durationBands.count))]
+        let seconds = band.lowerBound + Int(mix(firstMix) % UInt64(band.count))
+        return Self(displayedSeconds: seconds)
+    }
+
+    private static func mix(_ value: UInt64) -> UInt64 {
+        var mixed = value
+        mixed = (mixed ^ (mixed >> 30)) &* 0xBF58476D1CE4E5B9
+        mixed = (mixed ^ (mixed >> 27)) &* 0x94D049BB133111EB
+        return mixed ^ (mixed >> 31)
+    }
+}
+
 @MainActor
 final class FocuswardModel: ObservableObject {
     static let shared = FocuswardModel()
@@ -238,23 +269,11 @@ final class FocuswardModel: ObservableObject {
         earlyEndCountdown?.isReady(at: date) == true
     }
 
-    func earlyEndProgress(at date: Date) -> Double {
-        (earlyEndCountdown?.elapsedTime(at: date) ?? 0) / EarlyEndCountdown.duration
-    }
-
-    func earlyEndDisplayText(at date: Date) -> String {
-        guard let countdown = earlyEndCountdown else { return "" }
-        let bucket = UInt64(countdown.elapsedTime(at: date) / 4)
-        var mixed = bucket &+ earlyEndDisplaySeed &+ 0x9E3779B97F4A7C15
-        mixed = (mixed ^ (mixed >> 30)) &* 0xBF58476D1CE4E5B9
-        mixed = (mixed ^ (mixed >> 27)) &* 0x94D049BB133111EB
-        mixed ^= mixed >> 31
-
-        let displayedSeconds = 25 + Int(mixed % 310)
-        if displayedSeconds >= 60 {
-            return String(format: "%dm %02ds", displayedSeconds / 60, displayedSeconds % 60)
-        }
-        return "\(displayedSeconds)s"
+    func earlyEndDisplay(at date: Date) -> EarlyEndDisplayState {
+        EarlyEndDisplayState.randomized(
+            elapsedTime: earlyEndCountdown?.elapsedTime(at: date) ?? 0,
+            seed: earlyEndDisplaySeed
+        )
     }
 
     private func startMonitor() {

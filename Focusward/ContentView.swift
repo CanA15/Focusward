@@ -443,6 +443,8 @@ private struct EarlyEndControls: View {
     var body: some View {
         if model.hasEarlyEndRequest {
             TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { context in
+                let display = model.earlyEndDisplay(at: context.date)
+
                 if model.earlyEndIsReady(at: context.date) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("The cooldown is complete. Ending still requires confirmation.")
@@ -460,7 +462,7 @@ private struct EarlyEndControls: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Early-end cooldown")
                                     .fontWeight(.medium)
-                                Text("Estimated wait · \(model.earlyEndDisplayText(at: context.date))")
+                                Text("Estimated wait · \(display.text)")
                                     .foregroundStyle(.secondary)
                                 if !model.isEarlyEndTimerRunning {
                                     Text("Paused until this window is focused")
@@ -472,10 +474,11 @@ private struct EarlyEndControls: View {
                             Button("Cancel Request", action: model.cancelEarlyEnd)
                         }
 
-                        ProgressView(value: model.earlyEndProgress(at: context.date))
+                        ProgressView(value: display.progress)
                             .progressViewStyle(.linear)
                             .labelsHidden()
                             .tint(.blue)
+                            .animation(.easeInOut(duration: 0.8), value: display.progress)
                             .accessibilityLabel("Early-end request in progress")
                             .accessibilityValue("Waiting")
                     }

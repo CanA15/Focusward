@@ -47,6 +47,27 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertTrue(countdown.isReady(at: start.addingTimeInterval(360)))
     }
 
+    func testEarlyEndDisplayBalancesShortAndLongEstimates() {
+        let states = (0 ..< 400).map {
+            EarlyEndDisplayState.randomized(elapsedTime: TimeInterval($0 * 4), seed: 42)
+        }
+
+        XCTAssertGreaterThan(states.count { $0.displayedSeconds < 60 }, 70)
+        XCTAssertGreaterThan(states.count { $0.displayedSeconds >= 180 }, 70)
+        XCTAssertTrue(states.allSatisfy { (5 ... 330).contains($0.displayedSeconds) })
+    }
+
+    func testEarlyEndDisplayProgressMatchesItsLabel() {
+        let short = EarlyEndDisplayState(displayedSeconds: 15)
+        let long = EarlyEndDisplayState(displayedSeconds: 240)
+
+        XCTAssertEqual(short.text, "15s")
+        XCTAssertEqual(long.text, "4m 00s")
+        XCTAssertEqual(short.progress, 1 - 15.0 / 330.0, accuracy: 0.000_001)
+        XCTAssertEqual(long.progress, 1 - 240.0 / 330.0, accuracy: 0.000_001)
+        XCTAssertGreaterThan(short.progress, long.progress)
+    }
+
     func testApplicationIconIsBundled() {
         XCTAssertNotNil(Bundle.main.url(forResource: "AppIcon", withExtension: "icns"))
         XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "CFBundleIconFile") as? String, "AppIcon")
