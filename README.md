@@ -24,6 +24,20 @@ Requirements:
 - macOS 14 or later
 - Xcode 26 or later
 
+### Install from this repository
+
+Quit Focusward if it is already running, then run:
+
+```sh
+./install.sh
+```
+
+The installer builds a native Release copy in a temporary directory and installs it at `~/Applications/Focusward.app`. It requires no administrator password, removes its temporary build and any regenerable Debug or Release app bundles under this repository's `build` directory, and registers only the installed copy with macOS so Spotlight does not show duplicate builds.
+
+To update Focusward later, pull the latest source and run `./install.sh` again. The previous installed copy is kept until the replacement has built and passed code-signature verification.
+
+### Run from Xcode
+
 Open `Focusward.xcodeproj` in Xcode, select **My Mac**, and run the `Focusward` scheme. The first Safari interaction causes macOS to ask whether Focusward may control Safari. Choose **Allow**; if it was previously denied, enable Focusward under **System Settings → Privacy & Security → Automation**.
 
 To try a session:
@@ -57,4 +71,4 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   test
 ```
 
-This repository is currently an early technical prototype.
+This repository is currently an MVP.
