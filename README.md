@@ -9,7 +9,7 @@ Focusward is a free, local-only Safari website blocker for macOS. It adds delibe
 - Local shield page with no remote resources.
 - Cancelable early-end cooldown that advances only while Focusward is in front.
 - Local session recovery after relaunching the app.
-- Universal support for Apple Silicon and compatible Intel Macs.
+- Universal `arm64` and `x86_64` build.
 
 ## Privacy
 
@@ -19,9 +19,9 @@ Focusward has no backend, analytics, crash uploader, update checker, or networki
 
 Requirements:
 
-- macOS 14 or later
+- macOS 14 or later to run Focusward
 - Safari
-- Xcode 26 or later
+- Xcode 26.5 to build from source (tested configuration)
 
 Clone or download this repository, quit Focusward if it is already running, and run:
 
@@ -29,7 +29,7 @@ Clone or download this repository, quit Focusward if it is already running, and 
 ./install.sh
 ```
 
-The script builds a universal Release app locally, verifies its code signature and architectures, and installs it at `/Applications/Focusward.app`. No paid Apple Developer membership or prebuilt binary is required. macOS may show its standard one-time administrator prompt if your account cannot write to the system Applications folder; Focusward itself never runs as root or installs a privileged helper.
+The script builds a universal Release app locally, verifies its code signature and architectures, and installs it at `/Applications/Focusward.app`. The build contains native Apple Silicon and Intel slices; Apple Silicon is tested, while execution on physical Intel hardware has not yet been tested. No paid Apple Developer membership or prebuilt binary is required. macOS may show its standard one-time administrator prompt if your account cannot write to the system Applications folder; Focusward itself never runs as root or installs a privileged helper.
 
 To update, pull the latest source and run `./install.sh` again.
 
@@ -37,14 +37,16 @@ The first Safari interaction causes macOS to ask whether Focusward may control S
 
 ## Uninstall
 
-Quit Focusward and move `/Applications/Focusward.app` to the Trash. To also remove its local settings and Safari Automation permission, run:
+The repository is only the source used to build Focusward. You may delete it after installation, but doing so does not remove the installed app, its settings, or its Automation permission. You will need to clone it again to build future updates.
+
+To uninstall Focusward, quit it and move `/Applications/Focusward.app` to the Trash. That is sufficient for a normal uninstall. To also erase its local settings and Safari Automation permission, run:
 
 ```sh
 defaults delete app.focusward.local
 tccutil reset AppleEvents app.focusward.local
 ```
 
-## Development
+## Development and testing
 
 Open `Focusward.xcodeproj` in Xcode, select **My Mac**, and run the `Focusward` scheme.
 
