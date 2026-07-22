@@ -1,72 +1,54 @@
 # Focusward
 
-Focusward is a local-only Safari website blocker for macOS. It adds deliberate friction between an impulse and a distracting website without installing a browser extension, running a server, or modifying protected system files.
+Focusward is a free, local-only Safari website blocker for macOS. It adds deliberate friction between an impulse and a distracting website without a browser extension, server, account, or protected-system modification.
 
-It runs as your normal macOS user: no administrator password, root helper, paid Apple Developer membership, or hosted service is required. Xcode signs development builds locally with an ad-hoc “Sign to Run Locally” identity.
+## Features
 
-## Prototype goals
+- Blocks configured Safari websites during timed sessions.
+- Preset and custom session lengths up to 30 days.
+- Local shield page with no remote resources.
+- Cancelable early-end cooldown that advances only while Focusward is in front.
+- Local session recovery after relaunching the app.
+- Universal support for Apple Silicon and compatible Intel Macs.
 
-- Monitor open Safari tabs through Apple Events.
-- Match only normalized hostnames against a local blocklist.
-- Replace blocked tabs with a bundled `blocked.html` shield.
-- Keep sessions and settings on the Mac.
-- Offer quick durations plus a custom hours-and-minutes session up to 30 days.
-- Make ordinary quitting during a session require a cancelable cooldown.
+## Privacy
 
-## Privacy boundary
+Focusward has no backend, analytics, crash uploader, update checker, or networking implementation. Safari supplies complete tab URLs while a session is active, but Focusward extracts only the hostname in memory and does not persist or log browsing history, paths, or query parameters. See [Security and privacy notes](docs/SECURITY.md) for the complete boundary and known limitations.
 
-Focusward has no backend, analytics, crash uploader, update checker, or remote assets. Safari provides complete tab URLs to the app, but Focusward extracts the hostname in memory and does not persist or log paths, query parameters, or browsing history.
-
-## Development
+## Install from source
 
 Requirements:
 
 - macOS 14 or later
+- Safari
 - Xcode 26 or later
 
-### Install like a normal macOS app
-
-Quit Focusward if it is already running, then run:
+Clone or download this repository, quit Focusward if it is already running, and run:
 
 ```sh
 ./install.sh
 ```
 
-Focusward builds a universal Release app locally, creates `dist/Focusward.dmg`, and opens the disk image. Drag **Focusward** onto the **Applications** shortcut in that Finder window. The installed app then lives at `/Applications/Focusward.app`, just like a conventional Mac app. Finder may request an administrator password when copying into the system Applications folder.
+The script builds a universal Release app locally, verifies its code signature and architectures, and installs it at `/Applications/Focusward.app`. No paid Apple Developer membership or prebuilt binary is required. macOS may show its standard one-time administrator prompt if your account cannot write to the system Applications folder; Focusward itself never runs as root or installs a privileged helper.
 
-No Apple Developer account, persistent root helper, backend, or network connection is used. The disk image and app are built and signed locally. Finder's normal one-time administrator authorization may still be required to write to `/Applications`. To update later, pull the latest source, run `./install.sh` again, and replace the existing app when Finder asks.
+To update, pull the latest source and run `./install.sh` again.
 
-Use `./install.sh --no-open` to create the disk image without opening Finder. The generated `dist/` directory is ignored by Git and should not be committed.
+The first Safari interaction causes macOS to ask whether Focusward may control Safari. Choose **Allow**. If permission was previously denied, enable Focusward under **System Settings → Privacy & Security → Automation**.
 
-### Debug, Release, and generated builds
+## Uninstall
 
-Xcode's **Debug** and **Release** configurations are project settings and should remain in the repository. Debug is used while developing and running tests; Release is optimized for the app placed in the DMG. The actual generated apps and intermediate files under `build/`, `DerivedData/`, and `dist/` are local build products. They are ignored by Git, can be deleted safely, and are recreated when needed.
-
-### Run from Xcode
-
-Open `Focusward.xcodeproj` in Xcode, select **My Mac**, and run the `Focusward` scheme. The first Safari interaction causes macOS to ask whether Focusward may control Safari. Choose **Allow**; if it was previously denied, enable Focusward under **System Settings → Privacy & Security → Automation**.
-
-To try a session:
-
-1. Open Safari.
-2. Add a domain such as `youtube.com` in Focusward.
-3. Choose a duration and start the session.
-4. Visit the domain in any Safari tab. Focusward replaces that tab with its bundled local shield page.
-
-During an active session, ordinary Quit starts a cancelable early-end flow that advances only while the Focusward window is in front. Force Quit, Activity Monitor, process termination, and reboot remain intentional emergency exits.
-
-Command-line build:
+Quit Focusward and move `/Applications/Focusward.app` to the Trash. To also remove its local settings and Safari Automation permission, run:
 
 ```sh
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-  xcodebuild -project Focusward.xcodeproj \
-  -scheme Focusward \
-  -configuration Debug \
-  -derivedDataPath /tmp/FocuswardDerived \
-  build
+defaults delete app.focusward.local
+tccutil reset AppleEvents app.focusward.local
 ```
 
-Run the local unit tests with:
+## Development
+
+Open `Focusward.xcodeproj` in Xcode, select **My Mac**, and run the `Focusward` scheme.
+
+Command-line tests:
 
 ```sh
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
@@ -77,4 +59,12 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   test
 ```
 
-This repository is currently an MVP.
+Xcode's **Debug** and **Release** configurations are project settings and remain in the repository. Debug is used for development and tests; Release is optimized for installation. Generated apps and intermediate files under `build/` and `DerivedData/` are ignored by Git and can be deleted safely.
+
+## Enforcement limits
+
+Focusward is a deliberate-friction tool, not a tamper-proof security boundary. It is Safari-only and reacts shortly after top-level navigation begins. Force Quit, process termination, reboot, preference deletion, and system-clock changes remain recovery paths. See [the security notes](docs/SECURITY.md#enforcement-limits) for additional caveats.
+
+## License
+
+Focusward is available under the [MIT License](LICENSE).

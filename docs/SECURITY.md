@@ -11,9 +11,10 @@ Focusward stores only the normalized blocked domains, preferred session length, 
 ## Permissions and process boundary
 
 - Focusward never runs as root and does not install a privileged helper.
+- Installing into `/Applications` may trigger macOS's standard one-time administrator authorization; this grants no ongoing privilege to Focusward.
 - It does not edit `/etc/hosts`, DNS settings, proxies, firewall rules, or protected system files.
 - macOS asks for Automation permission because Focusward reads and replaces Safari tab addresses.
-- The current prototype is not App-Sandboxed while the Safari Apple Event integration is being validated. It still runs only with the signed-in user's permissions, and its source contains no general file-scanning or networking implementation.
+- Focusward is not App-Sandboxed while the Safari Apple Event integration is being validated. It still runs only with the signed-in user's permissions, and its source contains no general file-scanning or networking implementation.
 
 ## Enforcement limits
 

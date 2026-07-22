@@ -3,23 +3,68 @@ set -euo pipefail
 
 readonly app_name="Focusward"
 readonly repo_root="${0:A:h}"
-readonly output_root="$repo_root/dist"
-readonly output_dmg="$output_root/$app_name.dmg"
+readonly install_root="/Applications"
+readonly destination="$install_root/$app_name.app"
+readonly staging_destination="$install_root/.$app_name.installing.app"
+readonly backup_destination="$install_root/.$app_name.previous.app"
 readonly launch_services="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+install_in_progress=false
+owns_staging=false
+temporary_work_dir=""
+temporary_built_app=""
 
-open_dmg=true
-if (( $# > 1 )); then
-  print -u2 "Usage: ./install.sh [--no-open]"
+recover_destination() {
+  if [[ "$install_in_progress" == true ]]; then
+    if [[ -e "$backup_destination" ]] && { [[ ! -e "$destination" ]] || ! /usr/bin/codesign --verify --deep --strict "$destination" 2>/dev/null; }; then
+      /bin/rm -rf "$destination"
+      /bin/mv "$backup_destination" "$destination"
+    elif [[ -e "$backup_destination" ]]; then
+      /bin/rm -rf "$backup_destination"
+    elif [[ -e "$destination" ]] && ! /usr/bin/codesign --verify --deep --strict "$destination" 2>/dev/null; then
+      /bin/rm -rf "$destination"
+    fi
+  fi
+  [[ "$owns_staging" == true ]] && /bin/rm -rf "$staging_destination"
+}
+
+cleanup() {
+  recover_destination
+  [[ -d "$temporary_built_app" ]] && "$launch_services" -u "$temporary_built_app" >/dev/null 2>&1 || true
+  [[ -n "$temporary_work_dir" ]] && /bin/rm -rf "$temporary_work_dir"
+}
+
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+install_app() {
+  local source_app="$1"
+
+  if [[ -e "$backup_destination" && ! -e "$destination" ]]; then
+    /bin/mv "$backup_destination" "$destination"
+  fi
+  owns_staging=true
+  /bin/rm -rf "$staging_destination" "$backup_destination"
+  /usr/bin/ditto "$source_app" "$staging_destination"
+  /usr/bin/codesign --verify --deep --strict "$staging_destination"
+
+  install_in_progress=true
+  [[ -e "$destination" ]] && /bin/mv "$destination" "$backup_destination"
+  /bin/mv "$staging_destination" "$destination"
+  /usr/bin/codesign --verify --deep --strict "$destination"
+  /bin/rm -rf "$backup_destination"
+  install_in_progress=false
+}
+
+if [[ "${1:-}" == "--install-built-app" ]]; then
+  [[ $# == 2 && -d "$2" ]] || exit 2
+  install_app "$2"
+  exit
+elif (( $# > 0 )); then
+  print -u2 "Usage: ./install.sh"
   exit 2
 fi
-case "${1:-}" in
-  "") ;;
-  --no-open) open_dmg=false ;;
-  *)
-    print -u2 "Usage: ./install.sh [--no-open]"
-    exit 2
-    ;;
-esac
 
 developer_dir="${DEVELOPER_DIR:-}"
 if [[ -z "$developer_dir" ]]; then
@@ -37,24 +82,15 @@ if [[ -z "$developer_dir" || ! -x "$xcodebuild" ]]; then
 fi
 
 if /usr/bin/pgrep -x "$app_name" >/dev/null 2>&1; then
-  print -u2 "Quit Focusward before creating its installer."
+  print -u2 "Quit Focusward before installing or updating it."
   exit 1
 fi
 
-work_dir=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/focusward-dmg.XXXXXX")
-readonly work_dir
-readonly derived_data="$work_dir/DerivedData"
-readonly built_app="$derived_data/Build/Products/Release/$app_name.app"
-readonly staging_root="$work_dir/Installer"
-readonly temporary_dmg="$work_dir/$app_name.dmg"
-
-cleanup() {
-  [[ -d "$built_app" ]] && "$launch_services" -u "$built_app" >/dev/null 2>&1 || true
-  /bin/rm -rf "$work_dir"
-}
-trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+temporary_work_dir=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/focusward-install.XXXXXX")
+readonly temporary_work_dir
+readonly derived_data="$temporary_work_dir/DerivedData"
+temporary_built_app="$derived_data/Build/Products/Release/$app_name.app"
+readonly temporary_built_app
 
 print "Building a universal Focusward Release…"
 "$xcodebuild" \
@@ -68,34 +104,23 @@ print "Building a universal Focusward Release…"
   -quiet \
   build
 
-/usr/bin/codesign --verify --deep --strict "$built_app"
-/usr/bin/lipo "$built_app/Contents/MacOS/$app_name" -verify_arch arm64 x86_64
+/usr/bin/codesign --verify --deep --strict "$temporary_built_app"
+/usr/bin/lipo "$temporary_built_app/Contents/MacOS/$app_name" -verify_arch arm64 x86_64
 
-/bin/mkdir -p "$staging_root" "$output_root"
-/usr/bin/ditto "$built_app" "$staging_root/$app_name.app"
-/bin/ln -s /Applications "$staging_root/Applications"
-
-print "Creating $app_name.dmg…"
-/usr/bin/hdiutil create \
-  -volname "$app_name" \
-  -srcfolder "$staging_root" \
-  -format UDZO \
-  -ov \
-  "$temporary_dmg" >/dev/null
-/usr/bin/hdiutil verify "$temporary_dmg" >/dev/null
-/bin/mv -f "$temporary_dmg" "$output_dmg"
-
-for old_build in \
-  "$repo_root/build/DerivedData/Build/Products/Debug/$app_name.app" \
-  "$repo_root/build/DerivedData/Build/Products/Release/$app_name.app"; do
-  if [[ -d "$old_build" ]]; then
-    "$launch_services" -u "$old_build" >/dev/null 2>&1 || true
-    /bin/rm -rf "$old_build"
-  fi
-done
-
-print "Created $output_dmg"
-if [[ "$open_dmg" == true ]]; then
-  /usr/bin/open "$output_dmg"
-  print "Drag Focusward onto Applications in the Finder window."
+if [[ -w "$install_root" ]]; then
+  install_app "$temporary_built_app"
+else
+  print "Administrator authorization is required to install in /Applications."
+  /usr/bin/osascript - "$repo_root/install.sh" "$temporary_built_app" <<'APPLESCRIPT'
+on run arguments
+    set helperPath to item 1 of arguments
+    set sourcePath to item 2 of arguments
+    do shell script quoted form of helperPath & " --install-built-app " & quoted form of sourcePath with administrator privileges
+end run
+APPLESCRIPT
 fi
+
+/usr/bin/codesign --verify --deep --strict "$destination"
+/usr/bin/lipo "$destination/Contents/MacOS/$app_name" -verify_arch arm64 x86_64
+"$launch_services" -f "$destination"
+print "Installed Focusward at $destination"
