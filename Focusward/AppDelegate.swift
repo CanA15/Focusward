@@ -39,6 +39,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        guard
+            !isDuplicateInstance,
+            let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+            let icon = NSImage(contentsOf: iconURL)
+        else {
+            return
+        }
+
+        NSApp.applicationIconImage = icon
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         guard !isDuplicateInstance else { return }
         showMainWindow()

@@ -176,9 +176,9 @@ private struct SetupView: View {
 private struct AppIdentityRow: View {
     var body: some View {
         HStack(spacing: 14) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .scaledToFit()
+            Image(systemName: "shield.lefthalf.filled")
+                .font(.system(size: 32, weight: .medium))
+                .foregroundStyle(.secondary)
                 .frame(width: 46, height: 46)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -379,10 +379,9 @@ private struct SessionSummary: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 56, height: 56)
+            Image(systemName: "shield.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
 
             Text("Session Active")
                 .font(.title2.weight(.semibold))

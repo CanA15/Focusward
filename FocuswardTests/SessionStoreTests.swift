@@ -46,4 +46,9 @@ final class SessionStoreTests: XCTestCase {
         countdown.resume(at: start.addingTimeInterval(300))
         XCTAssertTrue(countdown.isReady(at: start.addingTimeInterval(360)))
     }
+
+    func testApplicationIconIsBundled() {
+        XCTAssertNotNil(Bundle.main.url(forResource: "AppIcon", withExtension: "icns"))
+        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "CFBundleIconFile") as? String, "AppIcon")
+    }
 }
