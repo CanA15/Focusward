@@ -21,6 +21,8 @@
 		B10000000000000000000012 /* FocusDurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000024 /* FocusDurationTests.swift */; };
 		B10000000000000000000013 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000025 /* Assets.xcassets */; };
 		B10000000000000000000014 /* FocuswardLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000026 /* FocuswardLogo.png */; };
+		B10000000000000000000015 /* DailyLimitsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000027 /* DailyLimitsTests.swift */; };
+		B10000000000000000000016 /* DailyLimits.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000028 /* DailyLimits.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,6 +53,8 @@
 		A10000000000000000000024 /* FocusDurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusDurationTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000025 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10000000000000000000026 /* FocuswardLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = FocuswardLogo.png; sourceTree = "<group>"; };
+		A10000000000000000000027 /* DailyLimitsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyLimitsTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000028 /* DailyLimits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyLimits.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,6 +102,7 @@
 				A10000000000000000000016 /* FocuswardModel.swift */,
 				A10000000000000000000013 /* DomainMatcher.swift */,
 				A10000000000000000000023 /* FocusDuration.swift */,
+				A10000000000000000000028 /* DailyLimits.swift */,
 				A10000000000000000000015 /* SafariAutomation.swift */,
 				A10000000000000000000014 /* SessionStore.swift */,
 				A10000000000000000000019 /* Info.plist */,
@@ -122,6 +127,7 @@
 				A10000000000000000000020 /* DomainMatcherTests.swift */,
 				A10000000000000000000022 /* SessionStoreTests.swift */,
 				A10000000000000000000024 /* FocusDurationTests.swift */,
+				A10000000000000000000027 /* DailyLimitsTests.swift */,
 			);
 			path = FocuswardTests;
 			sourceTree = "<group>";
@@ -231,6 +237,7 @@
 				B10000000000000000000005 /* SafariAutomation.swift in Sources */,
 				B10000000000000000000004 /* SessionStore.swift in Sources */,
 				B10000000000000000000011 /* FocusDuration.swift in Sources */,
+				B10000000000000000000016 /* DailyLimits.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -241,6 +248,7 @@
 				B10000000000000000000009 /* DomainMatcherTests.swift in Sources */,
 				B10000000000000000000010 /* SessionStoreTests.swift in Sources */,
 				B10000000000000000000012 /* FocusDurationTests.swift in Sources */,
+				B10000000000000000000015 /* DailyLimitsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

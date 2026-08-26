@@ -86,4 +86,31 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertFalse(html.contains(">F</div>"))
         XCTAssertFalse(html.contains("<svg"))
     }
+
+    func testPersistsDailyLimitsLocally() throws {
+        let suiteName = "FocuswardTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        var limits = DailyLimits(now: start)
+        XCTAssertTrue(
+            limits.addSite(
+                domain: "youtube.com",
+                allowanceMinutes: 30,
+                at: start
+            )
+        )
+        limits.setActive(true, at: start)
+        limits.recordUsage(
+            hostname: "youtube.com",
+            duration: 90,
+            at: start.addingTimeInterval(90)
+        )
+
+        let store = SessionStore(defaults: defaults)
+        store.dailyLimits = limits
+
+        XCTAssertEqual(SessionStore(defaults: defaults).dailyLimits, limits)
+    }
 }

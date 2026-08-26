@@ -7,6 +7,7 @@ final class SessionStore {
         static let sessionEnd = "sessionEnd"
         static let earlyEndReadyAt = "earlyEndReadyAt"
         static let earlyEndRemainingSeconds = "earlyEndRemainingSeconds"
+        static let dailyLimits = "dailyLimits"
     }
 
     private let defaults: UserDefaults
@@ -55,6 +56,23 @@ final class SessionStore {
                 defaults.set(max(0, newValue), forKey: Key.earlyEndRemainingSeconds)
             } else {
                 defaults.removeObject(forKey: Key.earlyEndRemainingSeconds)
+            }
+        }
+    }
+
+    var dailyLimits: DailyLimits? {
+        get {
+            guard let data = defaults.data(forKey: Key.dailyLimits) else { return nil }
+            return try? PropertyListDecoder().decode(DailyLimits.self, from: data)
+        }
+        set {
+            guard let newValue else {
+                defaults.removeObject(forKey: Key.dailyLimits)
+                return
+            }
+
+            if let data = try? PropertyListEncoder().encode(newValue) {
+                defaults.set(data, forKey: Key.dailyLimits)
             }
         }
     }
