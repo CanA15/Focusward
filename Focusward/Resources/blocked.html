@@ -116,12 +116,18 @@
     const params = new URLSearchParams(location.hash.slice(1));
     const end = Number(params.get("end")) * 1000;
     const host = params.get("host");
+    const mode = params.get("mode");
     const timer = document.getElementById("timer");
     const domain = document.getElementById("domain");
     const message = document.getElementById("message");
     const pad = value => String(value).padStart(2, "0");
 
-    if (host) domain.textContent = `${host} is blocked during this session.`;
+    if (mode === "daily") {
+      if (host) domain.textContent = `${host} reached its daily limit.`;
+      message.textContent = "Focusward will allow this website again after the daily reset.";
+    } else if (host) {
+      domain.textContent = `${host} is blocked during this session.`;
+    }
 
     function formatRemaining(totalSeconds) {
       const days = Math.floor(totalSeconds / 86400);
@@ -138,7 +144,9 @@
       const remaining = Math.max(0, Math.ceil((end - Date.now()) / 1000));
       timer.textContent = formatRemaining(remaining);
       if (remaining === 0) {
-        message.textContent = "The session has finished. You can navigate somewhere else when you are ready.";
+        message.textContent = mode === "daily"
+          ? "The daily allowance is available again. You can open the website."
+          : "The session has finished. You can navigate somewhere else when you are ready.";
       }
     }
 

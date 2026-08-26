@@ -113,4 +113,13 @@ final class SessionStoreTests: XCTestCase {
 
         XCTAssertEqual(SessionStore(defaults: defaults).dailyLimits, limits)
     }
+
+    func testShieldPageExplainsDailyLimitBlocks() throws {
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "blocked", withExtension: "html"))
+        let html = try String(contentsOf: url, encoding: .utf8)
+
+        XCTAssertTrue(html.contains("params.get(\"mode\")"))
+        XCTAssertTrue(html.contains("reached its daily limit"))
+        XCTAssertTrue(html.contains("daily allowance is available again"))
+    }
 }

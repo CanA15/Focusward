@@ -74,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let model = FocuswardModel.shared
+        model.persistStateForTermination()
         guard model.isSessionActive else {
             return .terminateNow
         }

@@ -3,14 +3,36 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var model: FocuswardModel
+    @State private var selectedFeature = FocuswardFeature.focusSession
 
     var body: some View {
-        Group {
-            if model.isSessionActive {
-                ActiveSessionView()
-            } else {
-                SetupView()
+        VStack(spacing: 0) {
+            Picker("Feature", selection: $selectedFeature) {
+                ForEach(FocuswardFeature.allCases) { feature in
+                    Text(feature.rawValue).tag(feature)
+                }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 420)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            Group {
+                switch selectedFeature {
+                case .focusSession:
+                    if model.isSessionActive {
+                        ActiveSessionView()
+                    } else {
+                        SetupView()
+                    }
+                case .dailyLimits:
+                    DailyLimitsView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
@@ -18,6 +40,13 @@ struct ContentView: View {
                 .ignoresSafeArea()
         }
     }
+}
+
+private enum FocuswardFeature: String, CaseIterable, Identifiable {
+    case focusSession = "Focus Session"
+    case dailyLimits = "Daily Limits"
+
+    var id: Self { self }
 }
 
 private struct SetupView: View {
@@ -170,6 +199,209 @@ private struct SetupView: View {
             isEnabled: model.customHours < FocusDuration.maximumHours,
             onChange: model.setCustomMinutes
         )
+    }
+}
+
+private struct DailyLimitsView: View {
+    @EnvironmentObject private var model: FocuswardModel
+
+    private var activeBinding: Binding<Bool> {
+        Binding(
+            get: { model.dailyLimits.isActive },
+            set: { model.setDailyLimitsActive($0) }
+        )
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                AppIdentityRow()
+            }
+
+            Section {
+                Toggle(isOn: activeBinding) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Daily Limits")
+                            .fontWeight(.medium)
+                        Text(model.dailyLimits.isActive ? "Active" : "Inactive")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+                .disabled(!model.canActivateDailyLimits && !model.dailyLimits.isActive)
+
+                LabeledContent {
+                    Text("Local midnight")
+                        .foregroundStyle(.secondary)
+                } label: {
+                    Label("Daily Reset", systemImage: "arrow.clockwise")
+                }
+
+                LabeledContent {
+                    Text(model.dailyLimitsMessage)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                        .lineLimit(2)
+                } label: {
+                    Label("Status", systemImage: "safari")
+                }
+
+                if model.dailyLimits.isActive {
+                    Label(
+                        "Deactivate Daily Limits to change the configuration.",
+                        systemImage: "lock.fill"
+                    )
+                    .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Protection")
+            } footer: {
+                Text(
+                    model.canActivateDailyLimits
+                        ? "Focusward counts time only when Safari and the limited website are active."
+                        : "Add at least one website before you activate Daily Limits."
+                )
+            }
+
+            Section {
+                HStack(spacing: 10) {
+                    TextField("youtube.com", text: $model.dailyDraftDomain)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { model.addDailyDraftSite() }
+
+                    Button("Add") {
+                        model.addDailyDraftSite()
+                    }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
+                }
+
+                DurationStepper(
+                    title: "Minutes per day",
+                    value: model.dailyDraftAllowanceMinutes,
+                    range: DailyLimits.allowanceRange,
+                    step: 5,
+                    onChange: { model.setDailyDraftAllowanceMinutes($0) }
+                )
+            } header: {
+                Text("Add Website")
+            } footer: {
+                Text("Each rule also applies to every subdomain.")
+            }
+            .disabled(model.dailyLimits.isActive)
+
+            Section {
+                if model.dailyLimits.sites.isEmpty {
+                    Label("No daily website limits", systemImage: "clock.badge.xmark")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(model.dailyLimits.sites) { site in
+                        DailyLimitSiteRow(site: site)
+                    }
+                }
+            } header: {
+                Text("Website Limits")
+            }
+
+            if model.dailyLimits.isActive {
+                Section("Activity") {
+                    StatusRow(
+                        title: "Redirected",
+                        value: "\(model.dailyRedirectedTabCount) tab\(model.dailyRedirectedTabCount == 1 ? "" : "s")",
+                        systemImage: "arrow.turn.down.right"
+                    )
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .task {
+            while !Task.isCancelled {
+                model.refreshDailyLimits()
+                try? await Task.sleep(for: .seconds(60))
+            }
+        }
+    }
+}
+
+private struct DailyLimitSiteRow: View {
+    @EnvironmentObject private var model: FocuswardModel
+    let site: DailyLimitSite
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Label(site.domain, systemImage: "globe")
+                    .fontWeight(.medium)
+
+                Spacer()
+
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(statusText(at: context.date))
+                        .foregroundStyle(site.isExhausted ? Color.red : Color.secondary)
+                        .monospacedDigit()
+                }
+            }
+
+            ProgressView(value: min(max(site.usedSeconds / site.allowanceSeconds, 0), 1))
+                .progressViewStyle(.linear)
+                .labelsHidden()
+                .tint(site.isExhausted ? .red : .blue)
+
+            HStack {
+                DurationStepper(
+                    title: "Minutes per day",
+                    value: site.allowanceMinutes,
+                    range: DailyLimits.allowanceRange,
+                    step: 5,
+                    isEnabled: !model.dailyLimits.isActive,
+                    onChange: { model.updateDailyAllowance(for: site.domain, minutes: $0) }
+                )
+                .disabled(model.dailyLimits.isActive)
+
+                Spacer()
+
+                Button(role: .destructive) {
+                    model.removeDailyLimit(for: site.domain)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .disabled(model.dailyLimits.isActive)
+                .help("Remove \(site.domain)")
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func statusText(at date: Date) -> String {
+        if
+            model.dailyLimits.isActive,
+            site.isExhausted,
+            let blockedSince = site.blockedSince
+        {
+            return "Blocked for \(durationText(seconds: date.timeIntervalSince(blockedSince)))"
+        }
+        if site.isExhausted {
+            return "No time remains today"
+        }
+        return "\(durationText(seconds: site.remainingSeconds)) left"
+    }
+
+    private func durationText(seconds: TimeInterval) -> String {
+        let total = max(0, Int(ceil(seconds)))
+        let hours = total / 3_600
+        let minutes = (total % 3_600) / 60
+        let remainingSeconds = total % 60
+
+        if hours > 0 {
+            let hourText = hours == 1 ? "1 hour" : "\(hours) hours"
+            return minutes > 0 ? "\(hourText) \(minutes) min" : hourText
+        }
+        if minutes > 0 {
+            return "\(minutes) min"
+        }
+        return remainingSeconds == 1 ? "1 second" : "\(remainingSeconds) seconds"
     }
 }
 
@@ -515,15 +747,32 @@ struct MenuBarContentView: View {
                             .font(.title2.monospacedDigit())
                     }
                 }
+            } else if model.dailyLimits.isActive {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Daily Limits are active")
+                        .font(.headline)
+                    Text("\(model.dailyLimits.sites.count) website\(model.dailyLimits.sites.count == 1 ? "" : "s") limited")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 Text("Focusward is ready")
                     .font(.headline)
             }
 
-            Text(model.automationMessage)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
+            if model.isSessionActive {
+                Text(model.automationMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            }
+
+            if model.dailyLimits.isActive {
+                Text(model.dailyLimitsMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            }
 
             Divider()
 

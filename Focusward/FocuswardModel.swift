@@ -86,6 +86,11 @@ final class FocuswardModel: ObservableObject {
     @Published private(set) var isEarlyEndTimerRunning = false
     @Published private(set) var automationMessage = "Ready"
     @Published private(set) var redirectedTabCount = 0
+    @Published private(set) var dailyLimits: DailyLimits
+    @Published var dailyDraftDomain = ""
+    @Published private(set) var dailyDraftAllowanceMinutes = 30
+    @Published private(set) var dailyLimitsMessage = "Inactive"
+    @Published private(set) var dailyRedirectedTabCount = 0
 
     private let store: SessionStore
     private let safari: SafariAutomation
@@ -93,6 +98,9 @@ final class FocuswardModel: ObservableObject {
     private var earlyEndCountdown: EarlyEndCountdown?
     private var isMainWindowFocused = false
     private var earlyEndDisplaySeed = UInt64.random(in: .min ... .max)
+    private var lastDailyUsageSampleAt: Date?
+    private var lastDailyPersistenceAt: Date?
+    private var dailyLimitsNeedPersistence = false
 
     private init(
         store: SessionStore = SessionStore(),
@@ -101,6 +109,14 @@ final class FocuswardModel: ObservableObject {
         self.store = store
         self.safari = safari
         self.domains = store.domains
+
+        let now = Date()
+        var restoredDailyLimits = store.dailyLimits ?? DailyLimits(now: now)
+        restoredDailyLimits.refresh(at: now)
+        self.dailyLimits = restoredDailyLimits
+        if restoredDailyLimits.isActive {
+            self.dailyLimitsMessage = "Safari monitoring active"
+        }
 
         let preferredDuration = store.preferredDurationMinutes
         if FocusDuration.presets.contains(preferredDuration) {
@@ -112,7 +128,6 @@ final class FocuswardModel: ObservableObject {
             self.customMinutes = components.minutes
         }
 
-        let now = Date()
         if let storedEnd = store.sessionEnd, storedEnd > now {
             self.sessionEnd = storedEnd
             let remaining = store.earlyEndRemainingSeconds
@@ -123,12 +138,13 @@ final class FocuswardModel: ObservableObject {
                 self.earlyEndCountdown = EarlyEndCountdown(remaining: remaining)
                 self.earlyEndReadyAt = now.addingTimeInterval(remaining)
             }
-            startMonitor()
         } else {
             store.clearSession()
             self.sessionEnd = nil
             self.earlyEndReadyAt = nil
         }
+
+        updateMonitor()
     }
 
     var isSessionActive: Bool {
@@ -152,6 +168,14 @@ final class FocuswardModel: ObservableObject {
 
     var hasEarlyEndRequest: Bool {
         earlyEndCountdown != nil
+    }
+
+    var isProtectionActive: Bool {
+        isSessionActive || dailyLimits.isActive
+    }
+
+    var canActivateDailyLimits: Bool {
+        !dailyLimits.sites.isEmpty
     }
 
     func addDraftDomain() {
@@ -222,7 +246,80 @@ final class FocuswardModel: ObservableObject {
         store.sessionEnd = end
         store.earlyEndReadyAt = nil
         store.earlyEndRemainingSeconds = nil
-        startMonitor()
+        updateMonitor()
+    }
+
+    func setDailyDraftAllowanceMinutes(_ minutes: Int) {
+        guard !dailyLimits.isActive else { return }
+        dailyDraftAllowanceMinutes = min(
+            max(minutes, DailyLimits.allowanceRange.lowerBound),
+            DailyLimits.allowanceRange.upperBound
+        )
+    }
+
+    func addDailyDraftSite() {
+        guard !dailyLimits.isActive else { return }
+        guard let normalized = DomainMatcher.normalizeRule(dailyDraftDomain) else {
+            dailyLimitsMessage = "Enter a valid domain such as youtube.com"
+            return
+        }
+        guard dailyLimits.site(for: normalized) == nil else {
+            dailyLimitsMessage = "A daily limit already exists for \(normalized)"
+            return
+        }
+
+        guard dailyLimits.addSite(
+            domain: normalized,
+            allowanceMinutes: dailyDraftAllowanceMinutes,
+            at: Date()
+        ) else {
+            return
+        }
+
+        dailyDraftDomain = ""
+        dailyLimitsMessage = "Added \(normalized)"
+        persistDailyLimits()
+    }
+
+    func updateDailyAllowance(for domain: String, minutes: Int) {
+        refreshDailyLimits()
+        guard dailyLimits.updateAllowance(for: domain, minutes: minutes) else { return }
+        dailyLimitsMessage = "Updated \(domain)"
+        persistDailyLimits()
+    }
+
+    func removeDailyLimit(for domain: String) {
+        guard dailyLimits.removeSite(domain: domain) else { return }
+        dailyLimitsMessage = "Removed \(domain)"
+        persistDailyLimits()
+    }
+
+    func setDailyLimitsActive(_ active: Bool) {
+        guard active != dailyLimits.isActive else { return }
+        if active, dailyLimits.sites.isEmpty {
+            dailyLimitsMessage = "Add at least one website first"
+            return
+        }
+
+        let now = Date()
+        dailyLimits.setActive(active, at: now)
+        dailyRedirectedTabCount = 0
+        dailyLimitsMessage = active ? "Starting Safari monitoring…" : "Inactive"
+        lastDailyUsageSampleAt = nil
+        persistDailyLimits()
+        updateMonitor()
+    }
+
+    func persistStateForTermination() {
+        persistDailyLimits()
+    }
+
+    func refreshDailyLimits(at date: Date = Date()) {
+        let previousDailyLimits = dailyLimits
+        dailyLimits.refresh(at: date)
+        if dailyLimits != previousDailyLimits {
+            persistDailyLimits(at: date)
+        }
     }
 
     func requestEarlyEnd() {
@@ -277,74 +374,167 @@ final class FocuswardModel: ObservableObject {
         )
     }
 
-    private func startMonitor() {
-        monitorTask?.cancel()
+    private func updateMonitor() {
+        let needsMonitor = sessionEnd != nil || dailyLimits.isActive
+        guard needsMonitor else {
+            monitorTask?.cancel()
+            monitorTask = nil
+            return
+        }
+        guard monitorTask == nil else { return }
+
         monitorTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                self.persistEarlyEndState(at: Date())
-                self.enforceCurrentTabs()
+                let now = Date()
+                self.persistEarlyEndState(at: now)
+                self.monitorSafari(at: now)
                 try? await Task.sleep(for: .milliseconds(500))
             }
         }
     }
 
-    private func enforceCurrentTabs() {
-        guard let end = sessionEnd else { return }
-        guard end > Date() else {
+    private func monitorSafari(at date: Date) {
+        var activeSessionEnd: Date?
+        if let end = sessionEnd, end <= date {
             finishSession(message: "Session complete")
-            return
+        } else {
+            activeSessionEnd = sessionEnd
+        }
+
+        guard activeSessionEnd != nil || dailyLimits.isActive else { return }
+
+        let previousDailyLimits = dailyLimits
+        dailyLimits.refresh(at: date)
+        if dailyLimits != previousDailyLimits {
+            dailyLimitsNeedPersistence = true
         }
 
         do {
             let snapshots = try safari.tabs()
-            var redirects = 0
+            recordDailyUsage(from: snapshots, sessionEnd: activeSessionEnd, at: date)
+
+            var sessionRedirects = 0
+            var dailyRedirects = 0
 
             for snapshot in snapshots {
-                guard
-                    let hostname = DomainMatcher.hostname(from: snapshot.url),
-                    DomainMatcher.isBlocked(hostname: hostname, by: domains),
-                    let destination = shieldURL(sessionEnd: end, hostname: hostname)
-                else {
-                    continue
+                guard let hostname = DomainMatcher.hostname(from: snapshot.url) else { continue }
+
+                let destination: URL?
+                let isSessionBlock = activeSessionEnd != nil
+                    && DomainMatcher.isBlocked(hostname: hostname, by: domains)
+
+                if isSessionBlock, let activeSessionEnd {
+                    destination = shieldURL(
+                        blockEnd: activeSessionEnd,
+                        hostname: hostname,
+                        mode: "session"
+                    )
+                } else if
+                    dailyLimits.blockingSite(for: hostname) != nil,
+                    let reset = dailyLimits.nextReset()
+                {
+                    destination = shieldURL(
+                        blockEnd: reset,
+                        hostname: hostname,
+                        mode: "daily"
+                    )
+                } else {
+                    destination = nil
                 }
 
+                guard let destination else { continue }
                 if try safari.redirect(snapshot, to: destination) {
-                    redirects += 1
+                    if isSessionBlock {
+                        sessionRedirects += 1
+                    } else {
+                        dailyRedirects += 1
+                    }
                 }
             }
 
-            if redirects > 0 {
-                redirectedTabCount += redirects
-                automationMessage = "Blocked \(redirects) Safari tab\(redirects == 1 ? "" : "s")"
-            } else {
-                automationMessage = "Safari monitoring active"
+            if activeSessionEnd != nil {
+                redirectedTabCount += sessionRedirects
+                automationMessage = sessionRedirects > 0
+                    ? blockedTabsMessage(count: sessionRedirects)
+                    : "Safari monitoring active"
+            }
+            if dailyLimits.isActive {
+                dailyRedirectedTabCount += dailyRedirects
+                dailyLimitsMessage = dailyRedirects > 0
+                    ? blockedTabsMessage(count: dailyRedirects)
+                    : "Safari monitoring active"
             }
         } catch {
-            automationMessage = error.localizedDescription
+            if activeSessionEnd != nil {
+                automationMessage = error.localizedDescription
+            }
+            if dailyLimits.isActive {
+                dailyLimitsMessage = error.localizedDescription
+            }
+        }
+
+        persistDailyLimitsIfNeeded(at: date)
+    }
+
+    private func recordDailyUsage(
+        from snapshots: [SafariTabSnapshot],
+        sessionEnd: Date?,
+        at date: Date
+    ) {
+        guard dailyLimits.isActive else { return }
+
+        let duration = min(
+            max(date.timeIntervalSince(lastDailyUsageSampleAt ?? date), 0),
+            1
+        )
+        lastDailyUsageSampleAt = date
+
+        let activeHostname = snapshots
+            .first(where: \.isActive)
+            .flatMap { DomainMatcher.hostname(from: $0.url) }
+        let isBlockedBySession = sessionEnd != nil
+            && activeHostname.map { DomainMatcher.isBlocked(hostname: $0, by: domains) } == true
+        let hostname = isBlockedBySession ? nil : activeHostname
+        let previousDailyLimits = dailyLimits
+
+        dailyLimits.recordUsage(
+            hostname: hostname,
+            duration: duration,
+            at: date
+        )
+        if dailyLimits != previousDailyLimits {
+            dailyLimitsNeedPersistence = true
         }
     }
 
-    private func shieldURL(sessionEnd: Date, hostname: String) -> URL? {
+    private func shieldURL(blockEnd: Date, hostname: String, mode: String) -> URL? {
         guard let resource = Bundle.main.url(forResource: "blocked", withExtension: "html") else {
-            automationMessage = "Bundled shield page is missing"
+            if mode == "daily" {
+                dailyLimitsMessage = "The bundled shield page is missing"
+            } else {
+                automationMessage = "The bundled shield page is missing"
+            }
             return nil
         }
 
         var components = URLComponents(url: resource, resolvingAgainstBaseURL: false)
-        components?.fragment = "end=\(Int(sessionEnd.timeIntervalSince1970))&host=\(hostname)"
+        components?.fragment = "end=\(Int(blockEnd.timeIntervalSince1970))&host=\(hostname)&mode=\(mode)"
         return components?.url
     }
 
+    private func blockedTabsMessage(count: Int) -> String {
+        "Blocked \(count) Safari tab\(count == 1 ? "" : "s")"
+    }
+
     private func finishSession(message: String) {
-        monitorTask?.cancel()
-        monitorTask = nil
         sessionEnd = nil
         earlyEndCountdown = nil
         earlyEndReadyAt = nil
         isEarlyEndTimerRunning = false
         store.clearSession()
         automationMessage = message
+        updateMonitor()
     }
 
     private func persistPreferredDuration() {
@@ -361,5 +551,19 @@ final class FocuswardModel: ObservableObject {
         if updateProjection {
             earlyEndReadyAt = projectedReadyAt
         }
+    }
+
+    private func persistDailyLimitsIfNeeded(at date: Date) {
+        guard dailyLimitsNeedPersistence else { return }
+        guard date.timeIntervalSince(lastDailyPersistenceAt ?? .distantPast) >= 5 else {
+            return
+        }
+        persistDailyLimits(at: date)
+    }
+
+    private func persistDailyLimits(at date: Date = Date()) {
+        store.dailyLimits = dailyLimits
+        dailyLimitsNeedPersistence = false
+        lastDailyPersistenceAt = date
     }
 }

@@ -2,11 +2,11 @@
 
 ## What Focusward can see
 
-During an active session, Safari supplies Focusward with the complete address of every open Safari tab. Focusward extracts the hostname in memory so it can compare it with the blocklist. It does not log or persist the complete addresses, paths, query parameters, page titles, or page contents.
+While protection is active, Safari supplies Focusward with the complete address of every open Safari tab. Focusward extracts the hostname in memory so it can compare it with the applicable rules. It does not log or persist the complete addresses, paths, query parameters, page titles, or page contents.
 
 ## What Focusward stores
 
-Focusward stores only the normalized blocked domains, preferred session length, session end time, and optional early-end cooldown state in the app's local `UserDefaults` container. The cooldown stores its remaining focused-window time so background time and relaunches do not advance it. The bundled shield is a local HTML file with a restrictive Content Security Policy and no remote assets.
+Focusward stores the timed-session settings and the Daily Limits state in the app's local `UserDefaults` container. The Daily Limits state contains normalized domains, allowances, used time, the current day boundary, and optional blocked start times. The early-end cooldown stores its remaining focused-window time so background time and relaunches do not advance it. The bundled shield is a local HTML file with a restrictive Content Security Policy and no remote assets.
 
 ## Permissions and process boundary
 

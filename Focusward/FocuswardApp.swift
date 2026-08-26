@@ -16,7 +16,7 @@ struct FocuswardApp: App {
             MenuBarContentView(showMainWindow: appDelegate.showMainWindow)
                 .environmentObject(model)
         } label: {
-            Image(systemName: model.isSessionActive ? "shield.fill" : "shield")
+            Image(systemName: model.isProtectionActive ? "shield.fill" : "shield")
         }
         .menuBarExtraStyle(.window)
     }

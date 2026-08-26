@@ -5,6 +5,7 @@ struct SafariTabSnapshot {
     let windowIndex: Int
     let tabIndex: Int
     let url: String
+    let isActive: Bool
 }
 
 enum SafariAutomationError: LocalizedError {
@@ -27,17 +28,25 @@ enum SafariAutomationError: LocalizedError {
 @MainActor
 final class SafariAutomation {
     func tabs() throws -> [SafariTabSnapshot] {
+        let safariIsFrontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            == "com.apple.Safari"
         let source = """
         if application "Safari" is not running then return {}
 
         set tabSnapshots to {}
         tell application "Safari"
+            set activeTabIndex to 0
+            if (count of windows) > 0 then
+                set activeTabIndex to index of current tab of window 1
+            end if
+
             repeat with windowIndex from 1 to count of windows
                 repeat with tabIndex from 1 to count of tabs of window windowIndex
                     try
                         set tabURL to URL of tab tabIndex of window windowIndex
                         if tabURL is missing value then set tabURL to ""
-                        set end of tabSnapshots to {windowIndex, tabIndex, tabURL as text}
+                        set isActiveTab to ((windowIndex is 1) and (tabIndex is activeTabIndex))
+                        set end of tabSnapshots to {windowIndex, tabIndex, tabURL as text, isActiveTab}
                     end try
                 end repeat
             end repeat
@@ -56,7 +65,7 @@ final class SafariAutomation {
             guard
                 let row = result.atIndex(index),
                 row.descriptorType == typeAEList,
-                row.numberOfItems == 3,
+                row.numberOfItems == 4,
                 let url = row.atIndex(3)?.stringValue
             else {
                 continue
@@ -66,7 +75,8 @@ final class SafariAutomation {
                 SafariTabSnapshot(
                     windowIndex: Int(row.atIndex(1)?.int32Value ?? 0),
                     tabIndex: Int(row.atIndex(2)?.int32Value ?? 0),
-                    url: url
+                    url: url,
+                    isActive: safariIsFrontmost && row.atIndex(4)?.booleanValue == true
                 )
             )
         }
