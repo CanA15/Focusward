@@ -7,16 +7,23 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Feature", selection: $selectedFeature) {
-                ForEach(FocuswardFeature.allCases) { feature in
-                    Text(feature.rawValue).tag(feature)
+            HStack(spacing: 24) {
+                AppIdentityRow()
+
+                Spacer(minLength: 16)
+
+                Picker("Feature", selection: $selectedFeature) {
+                    ForEach(FocuswardFeature.allCases) { feature in
+                        Text(feature.rawValue).tag(feature)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 260)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 420)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 18)
+            .background(Color(nsColor: .controlBackgroundColor))
 
             Divider()
 
@@ -34,11 +41,9 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .tint(.blue)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background {
-            Color(nsColor: .windowBackgroundColor)
-                .ignoresSafeArea()
-        }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
@@ -47,6 +52,70 @@ private enum FocuswardFeature: String, CaseIterable, Identifiable {
     case dailyLimits = "Daily Limits"
 
     var id: Self { self }
+}
+
+private struct FeatureHeading: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 28, weight: .semibold))
+                .accessibilityAddTraits(.isHeader)
+            Text(subtitle)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 4)
+    }
+}
+
+private struct SettingsCard<Content: View>: View {
+    let title: String
+    let systemImage: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Label(title, systemImage: systemImage)
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+            content
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(.primary.opacity(0.07), lineWidth: 1)
+        }
+    }
+}
+
+private struct EmptyWebsiteList: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "globe")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+                .frame(width: 42, height: 42)
+                .background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .fontWeight(.medium)
+                Text(subtitle)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 private struct SetupView: View {
@@ -58,125 +127,144 @@ private struct SetupView: View {
     )
 
     var body: some View {
-        Form {
-            Section {
-                AppIdentityRow()
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                FeatureHeading(
+                    title: "Time to focus.",
+                    subtitle: "Choose which websites to block and how long to focus."
+                )
 
-            Section {
-                HStack(spacing: 10) {
-                    TextField("youtube.com", text: $model.draftDomain)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit(model.addDraftDomain)
+                SettingsCard(title: "Blocked websites", systemImage: "globe") {
+                    HStack(spacing: 10) {
+                        TextField("Website, such as youtube.com", text: $model.draftDomain)
+                            .textFieldStyle(.roundedBorder)
+                            .controlSize(.large)
+                            .accessibilityLabel("Website to block")
+                            .onSubmit(model.addDraftDomain)
 
-                    Button("Add", action: model.addDraftDomain)
-                        .buttonStyle(.borderedProminent)
-                        .tint(.blue)
-                }
+                        Button("Add", action: model.addDraftDomain)
+                            .controlSize(.large)
+                    }
 
-                if model.domains.isEmpty {
-                    Label("No blocked websites", systemImage: "globe")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(model.domains, id: \.self) { domain in
-                        HStack {
-                            Label(domain, systemImage: "globe")
-                            Spacer()
-                            Button(role: .destructive) {
-                                model.removeDomain(domain)
-                            } label: {
-                                Image(systemName: "trash")
+                    if model.domains.isEmpty {
+                        EmptyWebsiteList(
+                            title: "No websites added",
+                            subtitle: "Add a website to set up your session."
+                        )
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(model.domains, id: \.self) { domain in
+                                HStack(spacing: 12) {
+                                    Image(systemName: "globe")
+                                        .foregroundStyle(.secondary)
+                                    Text(domain)
+                                        .textSelection(.enabled)
+                                    Spacer()
+                                    Button(role: .destructive) {
+                                        model.removeDomain(domain)
+                                    } label: {
+                                        Image(systemName: "minus.circle")
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .accessibilityLabel("Remove \(domain)")
+                                    .help("Remove \(domain)")
+                                }
+                                .padding(.vertical, 9)
+                                if domain != model.domains.last {
+                                    Divider()
+                                }
                             }
-                            .buttonStyle(.borderless)
-                            .help("Remove \(domain)")
-                        }
-                    }
-                }
-            } header: {
-                Text("Blocked Websites")
-            } footer: {
-                Text("Each rule also blocks every subdomain.")
-            }
-
-            Section {
-                LazyVGrid(columns: durationColumns, spacing: 8) {
-                    ForEach(FocusDuration.presets, id: \.self) { minutes in
-                        DurationChoiceButton(
-                            title: FocusDuration.compactLabel(totalMinutes: minutes),
-                            subtitle: quickDurationSubtitle(minutes),
-                            isSelected: !model.usesCustomDuration && model.durationMinutes == minutes
-                        ) {
-                            model.selectDurationPreset(minutes)
                         }
                     }
 
-                    DurationChoiceButton(
-                        title: "Custom",
-                        subtitle: "up to 30d",
-                        isSelected: model.usesCustomDuration,
-                        action: model.selectCustomDuration
-                    )
-                }
-
-                if model.usesCustomDuration {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 12) {
-                            customHoursControl
-                            customMinutesControl
-                        }
-
-                        VStack(spacing: 10) {
-                            customHoursControl
-                            customMinutesControl
-                        }
-                    }
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
-                LabeledContent {
-                    Text(model.selectedDurationMinutes > 0 ? model.durationSummary : "Choose a duration")
-                        .fontWeight(.medium)
-                        .foregroundStyle(model.selectedDurationMinutes > 0 ? Color.primary : Color.red)
-                } label: {
-                    Label("Selected", systemImage: "clock")
-                }
-            } header: {
-                Text("Session Length")
-            }
-
-            Section {
-                LabeledContent {
-                    Text(model.automationMessage)
+                    Text("Each website rule also blocks its subdomains.")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing)
-                        .lineLimit(2)
-                } label: {
-                    Label("Status", systemImage: "safari")
                 }
 
-                Button(action: model.startSession) {
-                    Label("Start Session", systemImage: "arrow.right.circle.fill")
-                        .frame(maxWidth: .infinity)
+                SettingsCard(title: "Session length", systemImage: "clock") {
+                    LazyVGrid(columns: durationColumns, spacing: 8) {
+                        ForEach(FocusDuration.presets, id: \.self) { minutes in
+                            DurationChoiceButton(
+                                title: FocusDuration.compactLabel(totalMinutes: minutes),
+                                subtitle: quickDurationSubtitle(minutes),
+                                isSelected: !model.usesCustomDuration && model.durationMinutes == minutes
+                            ) {
+                                model.selectDurationPreset(minutes)
+                            }
+                        }
+
+                        DurationChoiceButton(
+                            title: "Custom",
+                            subtitle: "Up to 30 days",
+                            isSelected: model.usesCustomDuration,
+                            action: model.selectCustomDuration
+                        )
+                    }
+
+                    if model.usesCustomDuration {
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 12) {
+                                customHoursControl
+                                customMinutesControl
+                            }
+                            VStack(spacing: 10) {
+                                customHoursControl
+                                customMinutesControl
+                            }
+                        }
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .tint(.blue)
-                .disabled(!model.canStartSession)
-            } footer: {
-                Text("Everything stays on this Mac. Focusward asks to control Safari, never for an administrator password.")
+
+                Label("Your settings stay on this Mac. Blocking applies to Safari.", systemImage: "lock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
             }
+            .padding(28)
+            .frame(maxWidth: 800)
+            .frame(maxWidth: .infinity)
         }
-        .formStyle(.grouped)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                Divider()
+                HStack(spacing: 20) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(model.selectedDurationMinutes > 0 ? model.durationSummary : "Choose a duration")
+                            .font(.headline)
+                        Text(model.automationMessage)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    Button(action: model.startSession) {
+                        HStack(spacing: 12) {
+                            Text("Start Session")
+                            Image(systemName: "arrow.right")
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(!model.canStartSession)
+                }
+                .padding(.horizontal, 28)
+                .padding(.vertical, 20)
+            }
+            .background(Color(nsColor: .controlBackgroundColor))
+        }
     }
 
     private func quickDurationSubtitle(_ minutes: Int) -> String {
         switch minutes {
-        case 25: "sprint"
-        case 45: "deep work"
-        case 60: "one hour"
-        case 120: "long block"
-        case 240: "half day"
-        default: "preset"
+        case 25: "Short"
+        case 45: "Standard"
+        case 60: "One hour"
+        case 120: "Two hours"
+        case 240: "Four hours"
+        default: "Preset"
         }
     }
 
@@ -213,108 +301,102 @@ private struct DailyLimitsView: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                AppIdentityRow()
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                FeatureHeading(
+                    title: "Set your daily limits.",
+                    subtitle: "Give each website a daily allowance. Allowances reset at local midnight."
+                )
 
-            Section {
-                Toggle(isOn: activeBinding) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Daily Limits")
-                            .fontWeight(.medium)
-                        Text(model.dailyLimits.isActive ? "Active" : "Inactive")
+                SettingsCard(title: "Daily protection", systemImage: "shield.lefthalf.filled") {
+                    HStack(spacing: 20) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(model.dailyLimits.isActive ? "Daily Limits are active" : "Daily Limits are inactive")
+                                .fontWeight(.medium)
+                            Text("Counts use while Safari and the website are active.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        Toggle("Daily Limits", isOn: activeBinding)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .disabled(!model.canActivateDailyLimits && !model.dailyLimits.isActive)
+                    }
+
+                    Divider()
+
+                    StatusRow(title: "Safari", value: model.dailyLimitsMessage, systemImage: "safari")
+
+                    if model.dailyLimits.isActive {
+                        Label("Deactivate Daily Limits to change the settings.", systemImage: "lock")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if !model.canActivateDailyLimits {
+                        Text("Add a website below to activate Daily Limits.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
-                .toggleStyle(.switch)
-                .disabled(!model.canActivateDailyLimits && !model.dailyLimits.isActive)
 
-                LabeledContent {
-                    Text("Local midnight")
+                SettingsCard(title: "Add a website", systemImage: "plus.circle") {
+                    HStack(spacing: 10) {
+                        TextField("Website, such as youtube.com", text: $model.dailyDraftDomain)
+                            .textFieldStyle(.roundedBorder)
+                            .controlSize(.large)
+                            .accessibilityLabel("Website for a daily limit")
+                            .onSubmit { model.addDailyDraftSite() }
+
+                        Button("Add") {
+                            model.addDailyDraftSite()
+                        }
+                        .controlSize(.large)
+                    }
+
+                    DurationStepper(
+                        title: "Minutes per day",
+                        value: model.dailyDraftAllowanceMinutes,
+                        range: DailyLimits.allowanceRange,
+                        step: 5,
+                        onChange: { model.setDailyDraftAllowanceMinutes($0) }
+                    )
+
+                    Text("Each website rule also applies to its subdomains.")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
-                } label: {
-                    Label("Daily Reset", systemImage: "arrow.clockwise")
                 }
+                .disabled(model.dailyLimits.isActive)
 
-                LabeledContent {
-                    Text(model.dailyLimitsMessage)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing)
-                        .lineLimit(2)
-                } label: {
-                    Label("Status", systemImage: "safari")
+                SettingsCard(title: "Website limits", systemImage: "clock") {
+                    if model.dailyLimits.sites.isEmpty {
+                        EmptyWebsiteList(
+                            title: "No daily limits added",
+                            subtitle: "Add a website and choose its daily allowance."
+                        )
+                    } else {
+                        ForEach(model.dailyLimits.sites) { site in
+                            DailyLimitSiteRow(site: site)
+                            if site.id != model.dailyLimits.sites.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
                 }
 
                 if model.dailyLimits.isActive {
-                    Label(
-                        "Deactivate Daily Limits to change the configuration.",
-                        systemImage: "lock.fill"
-                    )
-                    .foregroundStyle(.secondary)
-                }
-            } header: {
-                Text("Protection")
-            } footer: {
-                Text(
-                    model.canActivateDailyLimits
-                        ? "Focusward counts time only when Safari and the limited website are active."
-                        : "Add at least one website before you activate Daily Limits."
-                )
-            }
-
-            Section {
-                HStack(spacing: 10) {
-                    TextField("youtube.com", text: $model.dailyDraftDomain)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { model.addDailyDraftSite() }
-
-                    Button("Add") {
-                        model.addDailyDraftSite()
-                    }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.blue)
-                }
-
-                DurationStepper(
-                    title: "Minutes per day",
-                    value: model.dailyDraftAllowanceMinutes,
-                    range: DailyLimits.allowanceRange,
-                    step: 5,
-                    onChange: { model.setDailyDraftAllowanceMinutes($0) }
-                )
-            } header: {
-                Text("Add Website")
-            } footer: {
-                Text("Each rule also applies to every subdomain.")
-            }
-            .disabled(model.dailyLimits.isActive)
-
-            Section {
-                if model.dailyLimits.sites.isEmpty {
-                    Label("No daily website limits", systemImage: "clock.badge.xmark")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(model.dailyLimits.sites) { site in
-                        DailyLimitSiteRow(site: site)
-                    }
-                }
-            } header: {
-                Text("Website Limits")
-            }
-
-            if model.dailyLimits.isActive {
-                Section("Activity") {
                     StatusRow(
                         title: "Redirected",
                         value: "\(model.dailyRedirectedTabCount) tab\(model.dailyRedirectedTabCount == 1 ? "" : "s")",
                         systemImage: "arrow.turn.down.right"
                     )
+                    .font(.callout)
+                    .padding(.horizontal, 4)
                 }
             }
+            .padding(28)
+            .frame(maxWidth: 800)
+            .frame(maxWidth: .infinity)
         }
-        .formStyle(.grouped)
         .task {
             while !Task.isCancelled {
                 model.refreshDailyLimits()
@@ -329,7 +411,7 @@ private struct DailyLimitSiteRow: View {
     let site: DailyLimitSite
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Label(site.domain, systemImage: "globe")
                     .fontWeight(.medium)
@@ -368,6 +450,7 @@ private struct DailyLimitSiteRow: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(model.dailyLimits.isActive)
+                .accessibilityLabel("Remove \(site.domain)")
                 .help("Remove \(site.domain)")
             }
         }
@@ -407,26 +490,21 @@ private struct DailyLimitSiteRow: View {
 
 private struct AppIdentityRow: View {
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 10) {
             Image(systemName: "shield.lefthalf.filled")
-                .font(.system(size: 32, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 46, height: 46)
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(.blue)
+                .frame(width: 38, height: 38)
+                .background(.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 11))
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("Focusward")
-                    .font(.title2.weight(.semibold))
-                Text("Make space for what you meant to do.")
+                    .font(.headline)
+                Text("Safari website blocker")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
-            Spacer()
-
-            Label("Local only", systemImage: "checkmark.shield")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 4)
     }
 }
 
@@ -438,30 +516,33 @@ private struct DurationChoiceButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 3) {
+            VStack(spacing: 6) {
                 Text(title)
-                    .font(.headline)
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
                 Text(subtitle)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            .frame(maxWidth: .infinity, minHeight: 48)
-            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .frame(maxWidth: .infinity, minHeight: 68)
+            .contentShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
+        .foregroundStyle(isSelected ? Color.blue : Color.primary)
         .background(
-            isSelected ? Color.primary.opacity(0.06) : Color.clear,
-            in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+            isSelected ? Color.blue.opacity(0.07) : Color.primary.opacity(0.025),
+            in: RoundedRectangle(cornerRadius: 12)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(
-                    isSelected ? Color.blue : Color.secondary.opacity(0.22),
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(
+                    isSelected ? Color.blue : Color.primary.opacity(0.08),
                     lineWidth: isSelected ? 1.5 : 1
                 )
         }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -483,7 +564,7 @@ private struct DurationStepper: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(title)
-                .font(.headline)
+                .font(.callout.weight(.medium))
 
             Spacer()
 
@@ -492,7 +573,6 @@ private struct DurationStepper: View {
                 .font(.headline.monospacedDigit())
                 .multilineTextAlignment(.trailing)
                 .frame(width: 44)
-                .focusEffectDisabled()
                 .accessibilityLabel(title)
 
             VStack(spacing: 0) {
@@ -516,7 +596,7 @@ private struct DurationStepper: View {
             }
         }
         .padding(.horizontal, 12)
-        .frame(minWidth: 190, maxWidth: .infinity, minHeight: 50)
+        .frame(minWidth: 190, maxWidth: .infinity, minHeight: 46)
         .background(
             Color.primary.opacity(0.03),
             in: RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -580,29 +660,37 @@ private struct ActiveSessionView: View {
     @EnvironmentObject private var model: FocuswardModel
 
     var body: some View {
-        Form {
-            Section {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                FeatureHeading(
+                    title: "Your focus session.",
+                    subtitle: "Your website rules apply until the session ends."
+                )
+
                 SessionSummary()
-            }
 
-            Section("Session Status") {
-                StatusRow(
-                    title: "Safari",
-                    value: model.automationMessage,
-                    systemImage: "safari"
-                )
-                StatusRow(
-                    title: "Redirected",
-                    value: "\(model.redirectedTabCount) tab\(model.redirectedTabCount == 1 ? "" : "s")",
-                    systemImage: "arrow.turn.down.right"
-                )
-            }
+                SettingsCard(title: "Session status", systemImage: "safari") {
+                    StatusRow(
+                        title: "Safari",
+                        value: model.automationMessage,
+                        systemImage: "safari"
+                    )
+                    Divider()
+                    StatusRow(
+                        title: "Redirected",
+                        value: "\(model.redirectedTabCount) tab\(model.redirectedTabCount == 1 ? "" : "s")",
+                        systemImage: "arrow.turn.down.right"
+                    )
+                }
 
-            Section("Early End") {
-                EarlyEndControls()
+                SettingsCard(title: "End the session early", systemImage: "hourglass") {
+                    EarlyEndControls()
+                }
             }
+            .padding(28)
+            .frame(maxWidth: 800)
+            .frame(maxWidth: .infinity)
         }
-        .formStyle(.grouped)
     }
 }
 
@@ -610,17 +698,20 @@ private struct SessionSummary: View {
     @EnvironmentObject private var model: FocuswardModel
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             Image(systemName: "shield.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 26, weight: .medium))
+                .foregroundStyle(.blue)
+                .frame(width: 58, height: 58)
+                .background(.blue.opacity(0.08), in: Circle())
 
-            Text("Session Active")
-                .font(.title2.weight(.semibold))
+            Text("Session active")
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.secondary)
 
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 Text(remainingText(at: context.date))
-                    .font(.system(size: 46, weight: .medium, design: .monospaced))
+                    .font(.system(size: 56, weight: .light, design: .rounded).monospacedDigit())
                     .contentTransition(.numericText())
                     .minimumScaleFactor(0.65)
                     .lineLimit(1)
@@ -632,7 +723,13 @@ private struct SessionSummary: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
+        .padding(.vertical, 28)
+        .padding(.horizontal, 20)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 20))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20)
+                .strokeBorder(.blue.opacity(0.15), lineWidth: 1)
+        }
     }
 
     private func remainingText(at date: Date) -> String {
@@ -658,13 +755,13 @@ private struct StatusRow: View {
     let systemImage: String
 
     var body: some View {
-        LabeledContent {
+        HStack(alignment: .firstTextBaseline, spacing: 20) {
+            Label(title, systemImage: systemImage)
+            Spacer(minLength: 0)
             Text(value)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.trailing)
-                .lineLimit(2)
-        } label: {
-            Label(title, systemImage: systemImage)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
