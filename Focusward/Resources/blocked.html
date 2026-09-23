@@ -4,32 +4,38 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; navigate-to focusward:">
-  <title>Protected by Focusward</title>
+  <title>Blocked by Focusward</title>
   <style>
+    /* The colors and type follow the Focusward window. */
     :root {
       color-scheme: light dark;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-      --page: #f5f5f7;
-      --surface: rgba(255, 255, 255, .86);
+      font-size: 16px;
+      --page: #ffffff;
+      --card: #f8f8f8;
+      --border: rgba(0, 0, 0, .06);
       --text: #1d1d1f;
       --secondary: #6e6e73;
-      --border: rgba(0, 0, 0, .08);
-      --shadow: rgba(0, 0, 0, .10);
+      --pill: rgba(0, 0, 0, .05);
       --accent: #007aff;
-      --accent-hover: #006ee6;
-      --glow: rgba(0, 122, 255, .10);
+      --accent-hover: #0069d9;
+      --green: #34c759;
+      --orange: #ff9500;
+      --idle: #aeaeb2;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --page: #1c1c1e;
-        --surface: rgba(44, 44, 46, .88);
+        --page: #2e3135;
+        --card: #373a3c;
+        --border: rgba(255, 255, 255, .06);
         --text: #f5f5f7;
-        --secondary: #aeaeb2;
-        --border: rgba(255, 255, 255, .10);
-        --shadow: rgba(0, 0, 0, .35);
+        --secondary: #a1a1a6;
+        --pill: rgba(255, 255, 255, .08);
         --accent: #0a84ff;
-        --accent-hover: #409cff;
-        --glow: rgba(10, 132, 255, .16);
+        --accent-hover: #339aff;
+        --green: #30d158;
+        --orange: #ff9f0a;
+        --idle: #636366;
       }
     }
     * { box-sizing: border-box; }
@@ -38,99 +44,163 @@
       margin: 0;
       display: grid;
       place-items: center;
-      padding: 1rem;
-      background:
-        radial-gradient(60rem 40rem at 50% -10%, var(--glow), transparent 70%),
-        var(--page);
+      padding: 1.5rem;
+      background: var(--page);
       color: var(--text);
+      -webkit-font-smoothing: antialiased;
     }
     main {
-      width: min(38rem, 100%);
-      padding: clamp(2rem, 7vw, 3.5rem);
+      width: min(34rem, 100%);
+      display: grid;
+      gap: 1rem;
+      animation: rise .45s cubic-bezier(.2, .8, .2, 1) both;
+    }
+    .card {
+      display: grid;
+      justify-items: center;
+      padding: 2.5rem clamp(1.25rem, 5vw, 2rem) 2.25rem;
       border: 1px solid var(--border);
-      border-radius: 1.75rem;
-      background: var(--surface);
-      box-shadow: 0 1.5rem 5rem var(--shadow);
+      border-radius: 1.25rem;
+      background: var(--card);
       text-align: center;
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
     }
-    .shield {
+    .logo {
       display: block;
-      width: 4.5rem;
-      height: 4.5rem;
-      margin: 0 auto 1.5rem;
+      width: 4rem;
+      height: 4rem;
+      margin-bottom: 1.5rem;
+      filter: drop-shadow(0 .35rem .75rem rgba(10, 60, 160, .22));
     }
-    .shield img {
-      display: block;
-      width: 100%;
-      height: 100%;
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      margin: 0 0 1.25rem;
+      padding: .3rem .75rem;
+      border-radius: 999px;
+      background: var(--pill);
+      color: var(--secondary);
+      font-size: .875rem;
+      font-weight: 500;
     }
+    .dot {
+      width: .45rem;
+      height: .45rem;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .daily .dot { background: var(--orange); }
+    .finished .dot { background: var(--idle); animation: none; }
     h1 {
       margin: 0;
-      font-size: clamp(2rem, 6vw, 3.25rem);
-      letter-spacing: -.045em;
-      line-height: 1.05;
+      font-size: clamp(1.25rem, 6vw, 1.75rem);
+      font-weight: 600;
+      letter-spacing: -.02em;
+      overflow-wrap: anywhere;
     }
-    .domain {
-      margin: .75rem 0 2.25rem;
+    .reason {
+      margin: .35rem 0 0;
       color: var(--secondary);
-      font-size: 1.05rem;
+      font-size: 1.0625rem;
     }
     .timer {
-      margin: 0 0 1rem;
-      font: 600 clamp(2.4rem, 9vw, 4.75rem)/1 ui-rounded, "SF Pro Rounded", -apple-system, sans-serif;
+      margin: 1.75rem 0 .25rem;
+      font-size: clamp(3rem, 12vw, 4rem);
+      font-weight: 300;
       font-variant-numeric: tabular-nums;
-      letter-spacing: -.04em;
+      letter-spacing: -.02em;
+      line-height: 1;
       white-space: nowrap;
     }
-    .message {
-      max-width: 30rem;
-      margin: 0 auto 2rem;
+    .ends {
+      margin: 0;
       color: var(--secondary);
-      line-height: 1.55;
+    }
+    .message {
+      max-width: 26rem;
+      margin: 1.5rem 0 1.75rem;
+      color: var(--secondary);
+      font-size: .9375rem;
+      line-height: 1.5;
     }
     a {
       display: inline-block;
-      padding: .8rem 1.5rem;
+      min-width: 10rem;
+      padding: .7rem 1.5rem;
       border-radius: 999px;
       background: var(--accent);
-      color: white;
-      font-weight: 600;
+      color: #fff;
+      font-weight: 500;
       text-decoration: none;
       transition: background-color .15s ease, transform .15s ease;
     }
     a:hover { background: var(--accent-hover); }
     a:active { transform: scale(.98); }
-    a:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 3px; }
+    a:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent); outline-offset: 3px; }
+    .footnote {
+      margin: 0;
+      color: var(--secondary);
+      font-size: .8125rem;
+      text-align: center;
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(.5rem); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes pulse {
+      50% { opacity: .35; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      main, .dot { animation: none; }
+    }
   </style>
 </head>
 <body>
   <main>
-    <div class="shield" aria-hidden="true">
-      <img src="FocuswardLogo.png" alt="">
-    </div>
-    <h1>Stay with what matters.</h1>
-    <p class="domain" id="domain">This site is blocked during your session.</p>
-    <p class="timer" id="timer">--:--</p>
-    <p class="message" id="message">Focusward replaced this tab locally. Nothing from this page is hosted or downloaded.</p>
-    <a href="focusward://open">Open Focusward</a>
+    <section class="card" id="card">
+      <img src="FocuswardLogo.png" alt="" class="logo">
+      <p class="status"><span class="dot" aria-hidden="true"></span><span id="status">Focus session active</span></p>
+      <h1 id="host">This website</h1>
+      <p class="reason" id="reason">is blocked during your focus session.</p>
+      <p class="timer" id="timer" role="timer">--:--</p>
+      <p class="ends" id="ends">&nbsp;</p>
+      <p class="message" id="message">Stay with what matters. The website opens again when the session ends.</p>
+      <a href="focusward://open">Open Focusward</a>
+    </section>
+    <p class="footnote">Focusward replaced this tab on this Mac. Nothing was downloaded.</p>
   </main>
   <script>
     const params = new URLSearchParams(location.hash.slice(1));
     const end = Number(params.get("end")) * 1000;
     const host = params.get("host");
     const mode = params.get("mode");
+    const card = document.getElementById("card");
+    const status = document.getElementById("status");
+    const reason = document.getElementById("reason");
     const timer = document.getElementById("timer");
-    const domain = document.getElementById("domain");
+    const ends = document.getElementById("ends");
     const message = document.getElementById("message");
     const pad = value => String(value).padStart(2, "0");
 
+    if (host) {
+      document.getElementById("host").textContent = host;
+      document.title = `${host} is blocked`;
+    }
+
+    const endDate = new Date(end);
+    const isToday = endDate.toDateString() === new Date().toDateString();
+    const endTime = endDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const endDay = endDate.toLocaleDateString([], { month: "short", day: "numeric" });
+
     if (mode === "daily") {
-      if (host) domain.textContent = `${host} reached its daily limit.`;
-      message.textContent = "Focusward will allow this website again after the daily reset.";
-    } else if (host) {
-      domain.textContent = `${host} is blocked during this session.`;
+      card.classList.add("daily");
+      status.textContent = "Daily limit reached";
+      reason.textContent = "reached its daily limit.";
+      ends.textContent = "Resets at midnight";
+      message.textContent = "Your allowance for this website is used up for today. It resets automatically.";
+    } else if (end) {
+      ends.textContent = isToday ? `Ends at ${endTime}` : `Ends ${endDay}, ${endTime}`;
     }
 
     function formatRemaining(totalSeconds) {
@@ -140,7 +210,7 @@
       const seconds = totalSeconds % 60;
 
       if (days > 0) return `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
-      if (hours > 0) return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+      if (hours > 0) return `${hours}:${pad(minutes)}:${pad(seconds)}`;
       return `${pad(minutes)}:${pad(seconds)}`;
     }
 
@@ -148,6 +218,8 @@
       const remaining = Math.max(0, Math.ceil((end - Date.now()) / 1000));
       timer.textContent = formatRemaining(remaining);
       if (remaining === 0) {
+        card.classList.add("finished");
+        status.textContent = mode === "daily" ? "Allowance reset" : "Session finished";
         message.textContent = mode === "daily"
           ? "The daily allowance is available again. You can open the website."
           : "The session has finished. You can navigate somewhere else when you are ready.";
