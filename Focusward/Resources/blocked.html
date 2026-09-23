@@ -15,8 +15,9 @@
       --secondary: #6e6e73;
       --border: rgba(0, 0, 0, .08);
       --shadow: rgba(0, 0, 0, .10);
-      --blue: #007aff;
-      --blue-hover: #006ee6;
+      --accent: #5856d6;
+      --accent-hover: #4a48c4;
+      --glow: rgba(88, 86, 214, .14);
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -26,8 +27,9 @@
         --secondary: #aeaeb2;
         --border: rgba(255, 255, 255, .10);
         --shadow: rgba(0, 0, 0, .35);
-        --blue: #0a84ff;
-        --blue-hover: #409cff;
+        --accent: #5e5ce6;
+        --accent-hover: #7775f0;
+        --glow: rgba(94, 92, 230, .22);
       }
     }
     * { box-sizing: border-box; }
@@ -37,7 +39,9 @@
       display: grid;
       place-items: center;
       padding: 1rem;
-      background: var(--page);
+      background:
+        radial-gradient(60rem 40rem at 50% -10%, var(--glow), transparent 70%),
+        var(--page);
       color: var(--text);
     }
     main {
@@ -75,7 +79,7 @@
     }
     .timer {
       margin: 0 0 1rem;
-      font: 600 clamp(2.4rem, 9vw, 4.75rem)/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      font: 600 clamp(2.4rem, 9vw, 4.75rem)/1 ui-rounded, "SF Pro Rounded", -apple-system, sans-serif;
       font-variant-numeric: tabular-nums;
       letter-spacing: -.04em;
       white-space: nowrap;
@@ -88,17 +92,17 @@
     }
     a {
       display: inline-block;
-      padding: .75rem 1.15rem;
-      border-radius: .75rem;
-      background: var(--blue);
+      padding: .8rem 1.5rem;
+      border-radius: 999px;
+      background: var(--accent);
       color: white;
       font-weight: 600;
       text-decoration: none;
       transition: background-color .15s ease, transform .15s ease;
     }
-    a:hover { background: var(--blue-hover); }
+    a:hover { background: var(--accent-hover); }
     a:active { transform: scale(.98); }
-    a:focus-visible { outline: 3px solid color-mix(in srgb, var(--blue) 35%, transparent); outline-offset: 3px; }
+    a:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 3px; }
   </style>
 </head>
 <body>
