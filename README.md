@@ -2,6 +2,13 @@
 
 Focusward is a free, local-only Safari website blocker for macOS. It adds deliberate friction between an impulse and a distracting website without a browser extension, server, account, or protected-system modification.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/focusward-dark.png">
+    <img src="docs/images/focusward-light.png" alt="The Focusward window with a 45-minute session and four blocked websites" width="600">
+  </picture>
+</p>
+
 ## Features
 
 - Blocks configured Safari websites during timed sessions.
