@@ -11,6 +11,7 @@ struct FocuswardApp: App {
             MainWindowContent(model: model, appDelegate: appDelegate)
         }
         .defaultSize(width: 720, height: 780)
+        .windowToolbarStyle(.unified(showsTitle: false))
 
         MenuBarExtra {
             MenuBarContentView(showMainWindow: appDelegate.showMainWindow)
