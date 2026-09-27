@@ -8,120 +8,121 @@ final class DailyLimitsTests: XCTestCase {
         return calendar
     }
 
-    func testCountsOnlyActiveUseForAMatchingSite() throws {
+    func testBlocksEveryListedSiteOnlyWhileActive() throws {
         let start = try date(2026, 8, 27, 10, 0)
-        var limits = DailyLimits(now: start, calendar: calendar)
+        var limits = try limits(sites: ["youtube.com": 30], at: start, active: false)
 
-        XCTAssertTrue(
-            limits.addSite(
-                domain: "youtube.com",
-                allowanceMinutes: 30,
-                at: start,
-                calendar: calendar
-            )
-        )
-
-        limits.recordUsage(
-            hostname: "youtube.com",
-            duration: 60,
-            at: start.addingTimeInterval(60),
-            calendar: calendar
-        )
-        XCTAssertEqual(limits.site(for: "youtube.com")?.usedSeconds, 0)
+        XCTAssertNil(limits.blockingSite(for: "youtube.com", at: start))
 
         limits.setActive(true, at: start, calendar: calendar)
-        limits.recordUsage(
-            hostname: nil,
-            duration: 60,
-            at: start.addingTimeInterval(60),
-            calendar: calendar
-        )
-        limits.recordUsage(
-            hostname: "example.com",
-            duration: 60,
-            at: start.addingTimeInterval(120),
-            calendar: calendar
-        )
-        limits.recordUsage(
-            hostname: "www.youtube.com",
-            duration: 60,
-            at: start.addingTimeInterval(180),
-            calendar: calendar
-        )
 
-        XCTAssertEqual(limits.site(for: "youtube.com")?.usedSeconds, 60)
+        XCTAssertEqual(limits.blockingSite(for: "m.youtube.com", at: start)?.domain, "youtube.com")
+        XCTAssertNil(limits.blockingSite(for: "example.com", at: start))
     }
 
-    func testBlocksASiteWhenItsAllowanceIsEmpty() throws {
+    func testBreakOpensOnlyItsSiteUntilTheBreakEnds() throws {
         let start = try date(2026, 8, 27, 10, 0)
-        let exhaustedAt = start.addingTimeInterval(60)
-        var limits = DailyLimits(now: start, calendar: calendar)
+        let breakEnd = start.addingTimeInterval(10 * 60)
+        var limits = try limits(sites: ["youtube.com": 30, "reddit.com": 30], at: start)
 
-        XCTAssertTrue(
-            limits.addSite(
-                domain: "youtube.com",
-                allowanceMinutes: 1,
-                at: start,
-                calendar: calendar
-            )
-        )
-        limits.setActive(true, at: start, calendar: calendar)
-        limits.recordUsage(
-            hostname: "youtube.com",
-            duration: 90,
-            at: exhaustedAt,
-            calendar: calendar
-        )
+        XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 10, at: start, calendar: calendar))
 
-        let site = try XCTUnwrap(limits.blockingSite(for: "m.youtube.com"))
-        XCTAssertEqual(site.usedSeconds, 60)
-        XCTAssertEqual(site.remainingSeconds, 0)
-        XCTAssertEqual(site.blockedSince, exhaustedAt)
+        let duringBreak = start.addingTimeInterval(5 * 60)
+        XCTAssertNil(limits.blockingSite(for: "www.youtube.com", at: duringBreak))
+        XCTAssertNotNil(limits.blockingSite(for: "reddit.com", at: duringBreak))
+        XCTAssertNotNil(limits.blockingSite(for: "youtube.com", at: breakEnd))
+
+        limits.refresh(at: breakEnd, calendar: calendar)
+
+        let site = try XCTUnwrap(limits.site(for: "youtube.com"))
+        XCTAssertNil(site.activeBreak)
+        XCTAssertEqual(site.usedSeconds, 10 * 60)
+        XCTAssertEqual(site.remainingSeconds, 20 * 60)
+        XCTAssertEqual(site.breakCount, 1)
     }
 
-    func testResetsAllUsageAtLocalMidnight() throws {
-        let start = try date(2026, 8, 27, 23, 58)
+    func testRejectsABreakThatCannotStart() throws {
+        let start = try date(2026, 8, 27, 10, 0)
+        var limits = try limits(sites: ["youtube.com": 10], at: start, active: false)
+
+        XCTAssertFalse(limits.startBreak(for: "youtube.com", minutes: 5, at: start, calendar: calendar))
+
+        limits.setActive(true, at: start, calendar: calendar)
+
+        XCTAssertFalse(limits.startBreak(for: "reddit.com", minutes: 5, at: start, calendar: calendar))
+        XCTAssertFalse(limits.startBreak(for: "youtube.com", minutes: 0, at: start, calendar: calendar))
+        XCTAssertFalse(limits.startBreak(for: "youtube.com", minutes: 11, at: start, calendar: calendar))
+        XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 10, at: start, calendar: calendar))
+        XCTAssertFalse(limits.startBreak(for: "youtube.com", minutes: 1, at: start, calendar: calendar))
+
+        let afterBreak = start.addingTimeInterval(10 * 60)
+        XCTAssertFalse(limits.startBreak(for: "youtube.com", minutes: 1, at: afterBreak, calendar: calendar))
+        XCTAssertEqual(limits.site(for: "youtube.com")?.breakCount, 1)
+    }
+
+    func testEndingABreakEarlyChargesTheWholeMinutesUsed() throws {
+        let start = try date(2026, 8, 27, 10, 0)
+        let endedAt = start.addingTimeInterval(150)
+        var limits = try limits(sites: ["youtube.com": 30], at: start)
+
+        XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 10, at: start, calendar: calendar))
+        XCTAssertTrue(limits.endBreak(for: "youtube.com", at: endedAt, calendar: calendar))
+
+        let site = try XCTUnwrap(limits.site(for: "youtube.com"))
+        XCTAssertNil(site.activeBreak)
+        XCTAssertEqual(site.usedSeconds, 3 * 60)
+        XCTAssertEqual(site.breakCount, 1)
+        XCTAssertNotNil(limits.blockingSite(for: "youtube.com", at: endedAt))
+        XCTAssertFalse(limits.endBreak(for: "youtube.com", at: endedAt, calendar: calendar))
+    }
+
+    func testMidnightEndsBreaksAndResetsBreakTime() throws {
+        let start = try date(2026, 8, 27, 23, 55)
         let nextDay = try date(2026, 8, 28, 0, 1)
-        var limits = DailyLimits(now: start, calendar: calendar)
+        var limits = try limits(sites: ["youtube.com": 30], at: start)
 
-        XCTAssertTrue(
-            limits.addSite(
-                domain: "youtube.com",
-                allowanceMinutes: 1,
-                at: start,
-                calendar: calendar
-            )
-        )
-        limits.setActive(true, at: start, calendar: calendar)
-        limits.recordUsage(
-            hostname: "youtube.com",
-            duration: 60,
-            at: start.addingTimeInterval(60),
-            calendar: calendar
-        )
-
+        XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 10, at: start, calendar: calendar))
         limits.refresh(at: nextDay, calendar: calendar)
 
         let site = try XCTUnwrap(limits.site(for: "youtube.com"))
+        XCTAssertNil(site.activeBreak)
         XCTAssertEqual(site.usedSeconds, 0)
-        XCTAssertNil(site.blockedSince)
-        XCTAssertNil(limits.blockingSite(for: "youtube.com"))
+        XCTAssertEqual(site.breakCount, 0)
+        XCTAssertNotNil(limits.blockingSite(for: "youtube.com", at: nextDay))
         XCTAssertEqual(limits.periodStart, calendar.startOfDay(for: nextDay))
+    }
+
+    func testDeactivationEndsBreaksAndKeepsUsedTime() throws {
+        let start = try date(2026, 8, 27, 10, 0)
+        var limits = try limits(sites: ["youtube.com": 30], at: start)
+
+        XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 10, at: start, calendar: calendar))
+        limits.setActive(false, at: start.addingTimeInterval(3 * 60), calendar: calendar)
+
+        let site = try XCTUnwrap(limits.site(for: "youtube.com"))
+        XCTAssertNil(site.activeBreak)
+        XCTAssertEqual(site.usedSeconds, 3 * 60)
+        XCTAssertEqual(site.breakCount, 1)
+    }
+
+    func testSessionRulesEndOnlyTheBreaksTheyBlock() throws {
+        let start = try date(2026, 8, 27, 10, 0)
+        let sessionStart = start.addingTimeInterval(90)
+        var limits = try limits(sites: ["youtube.com": 30, "reddit.com": 30], at: start)
+
+        XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 10, at: start, calendar: calendar))
+        XCTAssertTrue(limits.startBreak(for: "reddit.com", minutes: 10, at: start, calendar: calendar))
+        limits.endBreaks(blockedBy: ["youtube.com", "m.reddit.com"], at: sessionStart, calendar: calendar)
+
+        let youtube = try XCTUnwrap(limits.site(for: "youtube.com"))
+        XCTAssertNil(youtube.activeBreak)
+        XCTAssertEqual(youtube.usedSeconds, 2 * 60)
+        XCTAssertNotNil(limits.site(for: "reddit.com")?.activeBreak)
     }
 
     func testLocksConfigurationWhileDailyLimitsAreActive() throws {
         let start = try date(2026, 8, 27, 10, 0)
-        var limits = DailyLimits(now: start, calendar: calendar)
-
-        XCTAssertTrue(
-            limits.addSite(
-                domain: "youtube.com",
-                allowanceMinutes: 30,
-                at: start,
-                calendar: calendar
-            )
-        )
-        limits.setActive(true, at: start, calendar: calendar)
+        var limits = try limits(sites: ["youtube.com": 30], at: start)
 
         XCTAssertFalse(
             limits.addSite(
@@ -140,30 +141,50 @@ final class DailyLimitsTests: XCTestCase {
         XCTAssertTrue(limits.removeSite(domain: "youtube.com"))
     }
 
-    func testDeactivationKeepsUsedTime() throws {
+    func testDecodesDailyLimitsSavedBeforeBreaks() throws {
         let start = try date(2026, 8, 27, 10, 0)
-        var limits = DailyLimits(now: start, calendar: calendar)
-
-        XCTAssertTrue(
-            limits.addSite(
-                domain: "youtube.com",
-                allowanceMinutes: 30,
-                at: start,
-                calendar: calendar
-            )
+        let saved = LegacyDailyLimits(
+            isActive: true,
+            periodStart: calendar.startOfDay(for: start),
+            sites: [
+                LegacyDailyLimitSite(
+                    domain: "youtube.com",
+                    allowanceMinutes: 30,
+                    usedSeconds: 90,
+                    blockedSince: start
+                ),
+            ]
         )
-        limits.setActive(true, at: start, calendar: calendar)
-        limits.recordUsage(
-            hostname: "youtube.com",
-            duration: 120,
-            at: start.addingTimeInterval(120),
-            calendar: calendar
-        )
-        limits.setActive(false, at: start.addingTimeInterval(180), calendar: calendar)
+        let data = try PropertyListEncoder().encode(saved)
 
+        let limits = try PropertyListDecoder().decode(DailyLimits.self, from: data)
+
+        XCTAssertTrue(limits.isActive)
         let site = try XCTUnwrap(limits.site(for: "youtube.com"))
-        XCTAssertEqual(site.usedSeconds, 120)
-        XCTAssertNil(site.blockedSince)
+        XCTAssertEqual(site.allowanceMinutes, 30)
+        XCTAssertEqual(site.usedSeconds, 90)
+        XCTAssertNil(site.activeBreak)
+        XCTAssertEqual(site.breakCount, 0)
+    }
+
+    private func limits(
+        sites: [String: Int],
+        at date: Date,
+        active: Bool = true
+    ) throws -> DailyLimits {
+        var limits = DailyLimits(now: date, calendar: calendar)
+        for (domain, minutes) in sites {
+            XCTAssertTrue(
+                limits.addSite(
+                    domain: domain,
+                    allowanceMinutes: minutes,
+                    at: date,
+                    calendar: calendar
+                )
+            )
+        }
+        limits.setActive(active, at: date, calendar: calendar)
+        return limits
     }
 
     private func date(
@@ -185,4 +206,17 @@ final class DailyLimitsTests: XCTestCase {
             )
         )
     }
+}
+
+private struct LegacyDailyLimits: Encodable {
+    let isActive: Bool
+    let periodStart: Date
+    let sites: [LegacyDailyLimitSite]
+}
+
+private struct LegacyDailyLimitSite: Encodable {
+    let domain: String
+    let allowanceMinutes: Int
+    let usedSeconds: TimeInterval
+    let blockedSince: Date?
 }

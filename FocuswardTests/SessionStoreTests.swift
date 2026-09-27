@@ -102,11 +102,7 @@ final class SessionStoreTests: XCTestCase {
             )
         )
         limits.setActive(true, at: start)
-        limits.recordUsage(
-            hostname: "youtube.com",
-            duration: 90,
-            at: start.addingTimeInterval(90)
-        )
+        XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 5, at: start))
 
         let store = SessionStore(defaults: defaults)
         store.dailyLimits = limits
@@ -114,12 +110,14 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(SessionStore(defaults: defaults).dailyLimits, limits)
     }
 
-    func testShieldPageExplainsDailyLimitBlocks() throws {
+    func testShieldPageExplainsDailyLimitBreaks() throws {
         let url = try XCTUnwrap(Bundle.main.url(forResource: "blocked", withExtension: "html"))
         let html = try String(contentsOf: url, encoding: .utf8)
 
         XCTAssertTrue(html.contains("params.get(\"mode\")"))
-        XCTAssertTrue(html.contains("reached its daily limit"))
-        XCTAssertTrue(html.contains("daily allowance is available again"))
+        XCTAssertTrue(html.contains("params.get(\"left\")"))
+        XCTAssertTrue(html.contains("Open Focusward to take a break"))
+        XCTAssertTrue(html.contains("No break time left today"))
+        XCTAssertFalse(html.contains("You can open the website"))
     }
 }

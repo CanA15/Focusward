@@ -17,11 +17,15 @@ Focusward must not require or contact a backend. The application bundle contains
 
 Daily Limits are independent from timed sessions. The user can activate either feature or both features.
 
-Each website has a separate daily allowance. Focusward counts use only when Safari is the foreground application and the website is in the active Safari tab. A background tab does not consume time.
+While Daily Limits are active, every listed website is blocked. Each website has a separate daily break time. A break opens one website for a length that the user selects, up to the break time left for that day.
 
-Focusward resets all daily usage at local midnight. Deactivation stops tracking and enforcement. Deactivation does not clear used time. Configuration controls are available only while Daily Limits are inactive.
+To start a break, the user selects the length, confirms, and then holds a button for 5 seconds. To turn off Daily Limits, the user confirms and holds the same button. A long press has no keyboard equivalent, so a keyboard-only user cannot complete these steps.
 
-When both features apply to the same website, a timed session has priority. Time blocked by a timed session does not consume the daily allowance.
+A break uses clock time. Time counts while Safari is in the background, while the Mac sleeps, and while Focusward is not running. A break reserves its full length when it starts. If the user ends a break early, Focusward charges the time used, rounded up to whole minutes.
+
+Focusward resets all break time and ends all breaks at local midnight. Deactivation ends a break in progress and stops enforcement. Deactivation does not clear used break time. Configuration controls are available only while Daily Limits are inactive.
+
+When both features apply to the same website, a timed session has priority. The user cannot start a break on a website that a running session blocks. A session start ends a break on a website that the session blocks, and Focusward charges only the time used.
 
 ## Intentional limits
 

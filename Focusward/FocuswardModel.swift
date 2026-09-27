@@ -98,7 +98,6 @@ final class FocuswardModel: ObservableObject {
     private var earlyEndCountdown: EarlyEndCountdown?
     private var isMainWindowFocused = false
     private var earlyEndDisplaySeed = UInt64.random(in: .min ... .max)
-    private var lastDailyUsageSampleAt: Date?
     private var lastDailyPersistenceAt: Date?
     private var dailyLimitsNeedPersistence = false
 
@@ -190,6 +189,9 @@ final class FocuswardModel: ObservableObject {
             store.domains = domains
         }
         draftDomain = ""
+        if isSessionActive {
+            endDailyBreaksBlockedBySession()
+        }
     }
 
     func removeDomain(_ domain: String) {
@@ -246,6 +248,7 @@ final class FocuswardModel: ObservableObject {
         store.sessionEnd = end
         store.earlyEndReadyAt = nil
         store.earlyEndRemainingSeconds = nil
+        endDailyBreaksBlockedBySession()
         updateMonitor()
     }
 
@@ -305,9 +308,46 @@ final class FocuswardModel: ObservableObject {
         dailyLimits.setActive(active, at: now)
         dailyRedirectedTabCount = 0
         dailyLimitsMessage = active ? "Starting Safari monitoring…" : "Inactive"
-        lastDailyUsageSampleAt = nil
         persistDailyLimits()
         updateMonitor()
+    }
+
+    func canStartDailyBreak(for domain: String) -> Bool {
+        guard
+            dailyLimits.isActive,
+            let site = dailyLimits.site(for: domain),
+            site.activeBreak == nil,
+            site.remainingMinutes > 0
+        else {
+            return false
+        }
+        return !isBlockedBySession(domain)
+    }
+
+    func isBlockedBySession(_ domain: String) -> Bool {
+        isSessionActive && DomainMatcher.isBlocked(hostname: domain, by: domains)
+    }
+
+    @discardableResult
+    func startDailyBreak(for domain: String, minutes: Int) -> Bool {
+        guard !isBlockedBySession(domain) else {
+            dailyLimitsMessage = "The focus session blocks \(domain)"
+            return false
+        }
+        guard dailyLimits.startBreak(for: domain, minutes: minutes, at: Date()) else {
+            dailyLimitsMessage = "The break for \(domain) could not start"
+            return false
+        }
+
+        dailyLimitsMessage = "Break started for \(domain)"
+        persistDailyLimits()
+        return true
+    }
+
+    func endDailyBreak(for domain: String) {
+        guard dailyLimits.endBreak(for: domain, at: Date()) else { return }
+        dailyLimitsMessage = "Break ended for \(domain)"
+        persistDailyLimits()
     }
 
     func persistStateForTermination() {
@@ -412,7 +452,6 @@ final class FocuswardModel: ObservableObject {
 
         do {
             let snapshots = try safari.tabs()
-            recordDailyUsage(from: snapshots, sessionEnd: activeSessionEnd, at: date)
 
             var sessionRedirects = 0
             var dailyRedirects = 0
@@ -431,13 +470,14 @@ final class FocuswardModel: ObservableObject {
                         mode: "session"
                     )
                 } else if
-                    dailyLimits.blockingSite(for: hostname) != nil,
+                    let site = dailyLimits.blockingSite(for: hostname, at: date),
                     let reset = dailyLimits.nextReset()
                 {
                     destination = shieldURL(
                         blockEnd: reset,
                         hostname: hostname,
-                        mode: "daily"
+                        mode: "daily",
+                        breakMinutesLeft: site.remainingMinutes
                     )
                 } else {
                     destination = nil
@@ -477,38 +517,12 @@ final class FocuswardModel: ObservableObject {
         persistDailyLimitsIfNeeded(at: date)
     }
 
-    private func recordDailyUsage(
-        from snapshots: [SafariTabSnapshot],
-        sessionEnd: Date?,
-        at date: Date
-    ) {
-        guard dailyLimits.isActive else { return }
-
-        let duration = min(
-            max(date.timeIntervalSince(lastDailyUsageSampleAt ?? date), 0),
-            1
-        )
-        lastDailyUsageSampleAt = date
-
-        let activeHostname = snapshots
-            .first(where: \.isActive)
-            .flatMap { DomainMatcher.hostname(from: $0.url) }
-        let isBlockedBySession = sessionEnd != nil
-            && activeHostname.map { DomainMatcher.isBlocked(hostname: $0, by: domains) } == true
-        let hostname = isBlockedBySession ? nil : activeHostname
-        let previousDailyLimits = dailyLimits
-
-        dailyLimits.recordUsage(
-            hostname: hostname,
-            duration: duration,
-            at: date
-        )
-        if dailyLimits != previousDailyLimits {
-            dailyLimitsNeedPersistence = true
-        }
-    }
-
-    private func shieldURL(blockEnd: Date, hostname: String, mode: String) -> URL? {
+    private func shieldURL(
+        blockEnd: Date,
+        hostname: String,
+        mode: String,
+        breakMinutesLeft: Int? = nil
+    ) -> URL? {
         guard let resource = Bundle.main.url(forResource: "blocked", withExtension: "html") else {
             if mode == "daily" {
                 dailyLimitsMessage = "The bundled shield page is missing"
@@ -519,7 +533,11 @@ final class FocuswardModel: ObservableObject {
         }
 
         var components = URLComponents(url: resource, resolvingAgainstBaseURL: false)
-        components?.fragment = "end=\(Int(blockEnd.timeIntervalSince1970))&host=\(hostname)&mode=\(mode)"
+        var fragment = "end=\(Int(blockEnd.timeIntervalSince1970))&host=\(hostname)&mode=\(mode)"
+        if let breakMinutesLeft {
+            fragment += "&left=\(breakMinutesLeft)"
+        }
+        components?.fragment = fragment
         return components?.url
     }
 
@@ -535,6 +553,14 @@ final class FocuswardModel: ObservableObject {
         store.clearSession()
         automationMessage = message
         updateMonitor()
+    }
+
+    private func endDailyBreaksBlockedBySession() {
+        let previousDailyLimits = dailyLimits
+        dailyLimits.endBreaks(blockedBy: domains, at: Date())
+        if dailyLimits != previousDailyLimits {
+            persistDailyLimits()
+        }
     }
 
     private func persistPreferredDuration() {

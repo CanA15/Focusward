@@ -306,12 +306,17 @@ private struct EarlyEndControls: View {
 
 private struct DailyLimitsView: View {
     @EnvironmentObject private var model: FocuswardModel
+    @State private var confirmation: DailyConfirmation?
 
     private var activeBinding: Binding<Bool> {
         Binding(
             get: { model.dailyLimits.isActive },
             set: { active in
-                withAnimation(.snappy) { model.setDailyLimitsActive(active) }
+                if active {
+                    withAnimation(.snappy) { model.setDailyLimitsActive(true) }
+                } else {
+                    confirmation = .turnOff
+                }
             }
         )
     }
@@ -321,7 +326,7 @@ private struct DailyLimitsView: View {
             Section {
                 Toggle(isOn: activeBinding) {
                     Text("Daily Limits")
-                    Text("Time counts only while Safari is in front and the website is in the active tab.")
+                    Text("Listed websites stay blocked. Take a break to open a website for a set time.")
                 }
                 .toggleStyle(.switch)
                 .disabled(!model.canActivateDailyLimits && !model.dailyLimits.isActive)
@@ -337,7 +342,9 @@ private struct DailyLimitsView: View {
 
             Section {
                 ForEach(model.dailyLimits.sites) { site in
-                    DailyLimitRow(site: site)
+                    DailyLimitRow(site: site) {
+                        confirmation = .startBreak(domain: site.domain)
+                    }
                 }
 
                 if !model.dailyLimits.isActive {
@@ -348,7 +355,7 @@ private struct DailyLimitsView: View {
                         withAnimation(.snappy) { model.addDailyDraftSite() }
                     } accessory: {
                         NumberStepper(
-                            title: "Minutes per day",
+                            title: "Break time per day",
                             unit: "min",
                             value: model.dailyDraftAllowanceMinutes,
                             range: DailyLimits.allowanceRange,
@@ -360,10 +367,13 @@ private struct DailyLimitsView: View {
             } header: {
                 Text("Websites")
             } footer: {
-                Text("Each rule also applies to its subdomains.")
+                Text("Each rule also applies to its subdomains. The minutes are the break time for each day.")
             }
         }
         .formStyle(.grouped)
+        .sheet(item: $confirmation) { confirmation in
+            DailyConfirmationSheet(confirmation: confirmation)
+        }
         .task {
             while !Task.isCancelled {
                 model.refreshDailyLimits()
@@ -374,18 +384,19 @@ private struct DailyLimitsView: View {
 
     private var protectionFooter: String {
         if model.dailyLimits.isActive {
-            return "Allowances reset at midnight. Turn off Daily Limits to change the websites."
+            return "Break time resets at midnight. Turn off Daily Limits to change the websites."
         }
         if !model.canActivateDailyLimits {
             return "Add a website below to turn on Daily Limits."
         }
-        return "Allowances reset at midnight."
+        return "Break time resets at midnight."
     }
 }
 
 private struct DailyLimitRow: View {
     @EnvironmentObject private var model: FocuswardModel
     let site: DailyLimitSite
+    let onTakeBreak: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -395,20 +406,16 @@ private struct DailyLimitRow: View {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         Text(statusText(at: context.date))
                             .font(.callout)
-                            .foregroundStyle(site.isExhausted ? Color.red : Color.secondary)
+                            .foregroundStyle(site.remainingMinutes == 0 ? Color.red : Color.secondary)
                             .monospacedDigit()
                     }
                 }
 
                 Spacer()
 
-                if model.dailyLimits.isActive {
-                    Text("\(site.allowanceMinutes) min a day")
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                } else {
+                if !model.dailyLimits.isActive {
                     NumberStepper(
-                        title: "Minutes per day for \(site.domain)",
+                        title: "Break time per day for \(site.domain)",
                         unit: "min",
                         value: site.allowanceMinutes,
                         range: DailyLimits.allowanceRange,
@@ -418,46 +425,281 @@ private struct DailyLimitRow: View {
                     RemoveButton(domain: site.domain) {
                         withAnimation(.snappy) { model.removeDailyLimit(for: site.domain) }
                     }
+                } else if site.activeBreak != nil {
+                    Button("End Break") {
+                        withAnimation(.snappy) { model.endDailyBreak(for: site.domain) }
+                    }
+                } else {
+                    Button("Take a Break", action: onTakeBreak)
+                        .disabled(!model.canStartDailyBreak(for: site.domain))
                 }
             }
 
             ProgressView(value: min(max(site.usedSeconds / site.allowanceSeconds, 0), 1))
                 .progressViewStyle(.linear)
                 .labelsHidden()
-                .tint(site.isExhausted ? Color.red : Color.accentColor)
+                .tint(site.remainingMinutes == 0 ? Color.red : Color.accentColor)
                 .animation(.smooth, value: site.usedSeconds)
         }
         .padding(.vertical, 4)
     }
 
     private func statusText(at date: Date) -> String {
-        if
-            model.dailyLimits.isActive,
-            site.isExhausted,
-            let blockedSince = site.blockedSince
-        {
-            return "Blocked for \(durationText(seconds: date.timeIntervalSince(blockedSince)))"
+        if let activeBreak = site.activeBreak {
+            let seconds = max(0, Int(ceil(activeBreak.end.timeIntervalSince(date))))
+            return "On a break · \(countdownText(seconds: seconds)) left"
         }
-        if site.isExhausted {
-            return "No time left today"
+        if model.dailyLimits.isActive, model.isBlockedBySession(site.domain) {
+            return "Blocked by the focus session"
         }
-        return "\(durationText(seconds: site.remainingSeconds)) left today"
+        if site.remainingMinutes == 0 {
+            return "No break time left today"
+        }
+        return "\(site.remainingMinutes) min of break time left today"
+    }
+}
+
+private enum DailyConfirmation: Identifiable {
+    case startBreak(domain: String)
+    case turnOff
+
+    var id: String {
+        switch self {
+        case .startBreak(let domain): domain
+        case .turnOff: "turnOff"
+        }
+    }
+}
+
+private struct DailyConfirmationSheet: View {
+    private enum Step {
+        case length
+        case confirm
+        case hold
     }
 
-    private func durationText(seconds: TimeInterval) -> String {
-        let total = max(0, Int(ceil(seconds)))
-        let hours = total / 3_600
-        let minutes = (total % 3_600) / 60
-        let remainingSeconds = total % 60
+    @EnvironmentObject private var model: FocuswardModel
+    @Environment(\.dismiss) private var dismiss
+    let confirmation: DailyConfirmation
+    @State private var step: Step
+    @State private var breakMinutes: Int
 
-        if hours > 0 {
-            let hourText = hours == 1 ? "1 hour" : "\(hours) hours"
-            return minutes > 0 ? "\(hourText) \(minutes) min" : hourText
+    init(confirmation: DailyConfirmation) {
+        self.confirmation = confirmation
+        switch confirmation {
+        case .startBreak:
+            _step = State(initialValue: .length)
+        case .turnOff:
+            _step = State(initialValue: .confirm)
         }
-        if minutes > 0 {
-            return "\(minutes) min"
+        _breakMinutes = State(initialValue: 5)
+    }
+
+    private var site: DailyLimitSite? {
+        guard case .startBreak(let domain) = confirmation else { return nil }
+        return model.dailyLimits.site(for: domain)
+    }
+
+    private var maximumBreakMinutes: Int {
+        max(site?.remainingMinutes ?? 1, 1)
+    }
+
+    private var selectedBreakMinutes: Int {
+        min(breakMinutes, maximumBreakMinutes)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            switch (confirmation, step) {
+            case (.startBreak(let domain), .length):
+                lengthStep(domain: domain)
+            case (.startBreak, .confirm):
+                breakConfirmStep
+            case (.startBreak, .hold):
+                holdStep(
+                    title: "Hold to Start the Break",
+                    buttonTitle: "Hold to Start",
+                    onComplete: startBreak
+                )
+            case (.turnOff, .confirm), (.turnOff, .length):
+                turnOffConfirmStep
+            case (.turnOff, .hold):
+                holdStep(
+                    title: "Hold to Turn Off Daily Limits",
+                    buttonTitle: "Hold to Turn Off",
+                    onComplete: turnOff
+                )
+            }
         }
-        return remainingSeconds == 1 ? "1 second" : "\(remainingSeconds) seconds"
+        .padding(24)
+        .frame(width: 380)
+    }
+
+    private func lengthStep(domain: String) -> some View {
+        Group {
+            Text("Take a Break from \(domain)")
+                .font(.headline)
+
+            if maximumBreakMinutes > 1 {
+                HStack {
+                    Slider(
+                        value: Binding(
+                            get: { Double(selectedBreakMinutes) },
+                            set: { breakMinutes = Int($0.rounded()) }
+                        ),
+                        in: 1 ... Double(maximumBreakMinutes),
+                        step: 1
+                    )
+                    .accessibilityLabel("Break length")
+                    .accessibilityValue("\(selectedBreakMinutes) min")
+                    Text("\(selectedBreakMinutes) min")
+                        .monospacedDigit()
+                        .frame(minWidth: 56, alignment: .trailing)
+                }
+            } else {
+                Text("Break length: 1 min")
+            }
+
+            Text("\(site?.remainingMinutes ?? 0) min of break time left today.")
+                .foregroundStyle(.secondary)
+
+            buttons(cancelTitle: "Cancel", continueTitle: "Continue") {
+                step = .confirm
+            }
+        }
+    }
+
+    private var breakConfirmStep: some View {
+        Group {
+            Text("Are You Sure?")
+                .font(.headline)
+
+            if let site {
+                let usedMinutes = Int((site.usedSeconds / 60).rounded(.up))
+                Text("You took \(breakCountText(site.breakCount)) on \(site.domain) today. You used \(usedMinutes) of \(site.allowanceMinutes) minutes.")
+                Text("After this break, you will have \(max(0, site.remainingMinutes - selectedBreakMinutes)) min of break time left today.")
+                    .foregroundStyle(.secondary)
+            }
+
+            buttons(cancelTitle: "Not Now", continueTitle: "Yes, Continue") {
+                step = .hold
+            }
+        }
+    }
+
+    private var turnOffConfirmStep: some View {
+        Group {
+            Text("Turn Off Daily Limits?")
+                .font(.headline)
+            Text("All listed websites open with no limit until you turn on Daily Limits again. A break in progress ends.")
+                .foregroundStyle(.secondary)
+
+            buttons(cancelTitle: "Keep On", continueTitle: "Continue") {
+                step = .hold
+            }
+        }
+    }
+
+    private func holdStep(
+        title: String,
+        buttonTitle: String,
+        onComplete: @escaping () -> Void
+    ) -> some View {
+        Group {
+            Text(title)
+                .font(.headline)
+
+            HoldToConfirmButton(title: buttonTitle, action: onComplete)
+                .frame(maxWidth: .infinity)
+
+            Text("Hold for \(Int(HoldToConfirmButton.duration)) seconds. Releasing early resets the progress.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+        }
+    }
+
+    private func buttons(
+        cancelTitle: String,
+        continueTitle: String,
+        onContinue: @escaping () -> Void
+    ) -> some View {
+        HStack {
+            Spacer()
+            Button(cancelTitle, role: .cancel) { dismiss() }
+                .keyboardShortcut(.cancelAction)
+            Button(continueTitle) {
+                withAnimation(.snappy) { onContinue() }
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private func startBreak() {
+        if let site {
+            withAnimation(.snappy) {
+                _ = model.startDailyBreak(for: site.domain, minutes: selectedBreakMinutes)
+            }
+        }
+        dismiss()
+    }
+
+    private func turnOff() {
+        withAnimation(.snappy) { model.setDailyLimitsActive(false) }
+        dismiss()
+    }
+
+    private func breakCountText(_ count: Int) -> String {
+        switch count {
+        case 0: "no breaks"
+        case 1: "1 break"
+        default: "\(count) breaks"
+        }
+    }
+}
+
+// A long press has no keyboard equivalent. See docs/ARCHITECTURE.md.
+private struct HoldToConfirmButton: View {
+    static let duration: TimeInterval = 5
+
+    let title: String
+    let action: () -> Void
+    @State private var isPressing = false
+
+    var body: some View {
+        Text(title)
+            .font(.body.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(minWidth: 200)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 20)
+            .background {
+                Capsule()
+                    .fill(Color.accentColor.opacity(0.45))
+                    .overlay(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.accentColor)
+                            .scaleEffect(x: isPressing ? 1 : 0, anchor: .leading)
+                    }
+                    .clipShape(Capsule())
+            }
+            .contentShape(Capsule())
+            .onLongPressGesture(minimumDuration: Self.duration, maximumDistance: 40) {
+                action()
+            } onPressingChanged: { pressing in
+                withAnimation(pressing ? .linear(duration: Self.duration) : .easeOut(duration: 0.2)) {
+                    isPressing = pressing
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(title)
+            .accessibilityHint("Press and hold for \(Int(Self.duration)) seconds.")
+            .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -647,6 +889,17 @@ struct MenuBarContentView: View {
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
                         }
+                        ForEach(sitesOnBreak) { site in
+                            TimelineView(.periodic(from: .now, by: 1)) { context in
+                                HStack {
+                                    Text("Break · \(site.domain)")
+                                    Spacer()
+                                    Text(countdownText(seconds: breakSecondsLeft(for: site, at: context.date)))
+                                        .monospacedDigit()
+                                }
+                                .font(.caption)
+                            }
+                        }
                     }
                 }
 
@@ -678,6 +931,14 @@ struct MenuBarContentView: View {
                     }
                 }
 
+                ForEach(sitesOnBreak) { site in
+                    Button {
+                        model.endDailyBreak(for: site.domain)
+                    } label: {
+                        Label("End Break for \(site.domain)", systemImage: "cup.and.saucer")
+                    }
+                }
+
                 Button {
                     NSApp.terminate(nil)
                 } label: {
@@ -688,6 +949,14 @@ struct MenuBarContentView: View {
             .padding(5)
         }
         .frame(width: 280)
+    }
+
+    private var sitesOnBreak: [DailyLimitSite] {
+        model.dailyLimits.sites.filter { $0.activeBreak != nil }
+    }
+
+    private func breakSecondsLeft(for site: DailyLimitSite, at date: Date) -> Int {
+        max(0, Int(ceil((site.activeBreak?.end ?? date).timeIntervalSince(date))))
     }
 }
 

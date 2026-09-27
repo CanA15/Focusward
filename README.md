@@ -13,9 +13,10 @@ Focusward is a free, local-only Safari website blocker for macOS. It adds delibe
 
 - Blocks configured Safari websites during timed sessions.
 - Preset and custom session lengths up to 30 days.
-- Gives each configured website a separate daily allowance.
-- Counts daily use only for the active Safari tab while Safari is in front.
-- Resets daily allowances at local midnight.
+- Blocks Daily Limits websites all day. A break opens one website for a set length.
+- Gives each Daily Limits website a separate daily break time.
+- Starts a break only after a confirmation and a 5-second hold.
+- Resets daily break time at local midnight.
 - Local shield page with no remote resources.
 - Cancelable early-end cooldown that advances only while Focusward is in front.
 - Local session recovery after relaunching the app.

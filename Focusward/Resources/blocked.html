@@ -175,6 +175,7 @@
     const end = Number(params.get("end")) * 1000;
     const host = params.get("host");
     const mode = params.get("mode");
+    const breakMinutesLeft = Number(params.get("left"));
     const card = document.getElementById("card");
     const status = document.getElementById("status");
     const reason = document.getElementById("reason");
@@ -193,12 +194,21 @@
     const endTime = endDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     const endDay = endDate.toLocaleDateString([], { month: "short", day: "numeric" });
 
+    const hasBreakTime = mode === "daily" && breakMinutesLeft > 0;
+
     if (mode === "daily") {
       card.classList.add("daily");
-      status.textContent = "Daily limit reached";
-      reason.textContent = "reached its daily limit.";
-      ends.textContent = "Resets at midnight";
-      message.textContent = "Your allowance for this website is used up for today. It resets automatically.";
+      reason.textContent = "is blocked by Daily Limits.";
+      if (hasBreakTime) {
+        status.textContent = "Daily Limits active";
+        timer.textContent = `${breakMinutesLeft} min`;
+        ends.textContent = "of break time left today";
+        message.textContent = "Open Focusward to take a break.";
+      } else {
+        status.textContent = "No break time left today";
+        ends.textContent = "Break time resets at midnight";
+        message.textContent = "You used all break time for this website today.";
+      }
     } else if (end) {
       ends.textContent = isToday ? `Ends at ${endTime}` : `Ends ${endDay}, ${endTime}`;
     }
@@ -215,13 +225,14 @@
     }
 
     function updateTimer() {
+      if (hasBreakTime) return;
       const remaining = Math.max(0, Math.ceil((end - Date.now()) / 1000));
       timer.textContent = formatRemaining(remaining);
       if (remaining === 0) {
         card.classList.add("finished");
-        status.textContent = mode === "daily" ? "Allowance reset" : "Session finished";
+        status.textContent = mode === "daily" ? "Break time reset" : "Session finished";
         message.textContent = mode === "daily"
-          ? "The daily allowance is available again. You can open the website."
+          ? "Break time is available again. Open Focusward to take a break."
           : "The session has finished. You can navigate somewhere else when you are ready.";
       }
     }
