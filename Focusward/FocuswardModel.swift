@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 
 enum DailyBreakError: LocalizedError {
@@ -85,10 +84,6 @@ final class FocuswardModel: ObservableObject {
         usesCustomDuration
             ? FocusDuration.totalMinutes(hours: customHours, minutes: customMinutes)
             : durationMinutes
-    }
-
-    var durationSummary: String {
-        FocusDuration.label(totalMinutes: selectedDurationMinutes)
     }
 
     var canStartSession: Bool {
