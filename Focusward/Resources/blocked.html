@@ -176,6 +176,7 @@
     const host = params.get("host");
     const mode = params.get("mode");
     const breakMinutesLeft = Number(params.get("left"));
+    const isBreakBlockedBySession = params.get("session") === "1";
     const card = document.getElementById("card");
     const status = document.getElementById("status");
     const reason = document.getElementById("reason");
@@ -203,7 +204,9 @@
         status.textContent = "Daily Limits active";
         timer.textContent = `${breakMinutesLeft} min`;
         ends.textContent = "of break time left today";
-        message.textContent = "Open Focusward to take a break.";
+        message.textContent = isBreakBlockedBySession
+          ? "You can take a break after the focus session ends."
+          : "Open Focusward to take a break.";
       } else {
         status.textContent = "No break time left today";
         ends.textContent = "Break time resets at midnight";

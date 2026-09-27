@@ -86,6 +86,8 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertTrue(html.contains("params.get(\"left\")"))
         XCTAssertTrue(html.contains("Open Focusward to take a break"))
         XCTAssertTrue(html.contains("No break time left today"))
+        XCTAssertTrue(html.contains("params.get(\"session\")"))
+        XCTAssertTrue(html.contains("You can take a break after the focus session ends."))
         XCTAssertFalse(html.contains("You can open the website"))
     }
 }

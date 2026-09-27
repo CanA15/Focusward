@@ -339,7 +339,8 @@ final class FocuswardModel: ObservableObject {
                         blockEnd: reset,
                         hostname: hostname,
                         mode: "daily",
-                        breakMinutesLeft: site.remainingMinutes
+                        breakMinutesLeft: site.remainingMinutes,
+                        isBreakBlockedBySession: isBlockedBySession(site.domain)
                     )
                 } else {
                     destination = nil
@@ -383,7 +384,8 @@ final class FocuswardModel: ObservableObject {
         blockEnd: Date,
         hostname: String,
         mode: String,
-        breakMinutesLeft: Int? = nil
+        breakMinutesLeft: Int? = nil,
+        isBreakBlockedBySession: Bool = false
     ) -> URL? {
         guard let resource = Bundle.main.url(forResource: "blocked", withExtension: "html") else {
             if mode == "daily" {
@@ -398,6 +400,9 @@ final class FocuswardModel: ObservableObject {
         var fragment = "end=\(Int(blockEnd.timeIntervalSince1970))&host=\(hostname)&mode=\(mode)"
         if let breakMinutesLeft {
             fragment += "&left=\(breakMinutesLeft)"
+        }
+        if isBreakBlockedBySession {
+            fragment += "&session=1"
         }
         components?.fragment = fragment
         return components?.url
