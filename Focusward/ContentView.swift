@@ -526,6 +526,7 @@ private struct BreakRequestSheet: View {
                 },
                 onSelect: { breakMinutes = $0 }
             )
+            .accessibilityElement(children: .contain)
             .accessibilityLabel("Break length")
 
             Text("\(site?.remainingMinutes ?? 0) min of break time left today.")
