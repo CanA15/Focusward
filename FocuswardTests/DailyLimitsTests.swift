@@ -60,6 +60,30 @@ final class DailyLimitsTests: XCTestCase {
         XCTAssertEqual(limits.site(for: "youtube.com")?.breakCount, 1)
     }
 
+    func testOffersBreakLengthsUpToTheTimeLeft() throws {
+        let start = try date(2026, 8, 27, 10, 0)
+        var limits = try limits(sites: ["youtube.com": 30], at: start)
+
+        var site = try XCTUnwrap(limits.site(for: "youtube.com"))
+        XCTAssertEqual(site.breakLengthOptions, [1, 5, 10, 15, 30])
+        XCTAssertEqual(site.defaultBreakMinutes, 5)
+
+        XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 12, at: start, calendar: calendar))
+        site = try XCTUnwrap(limits.site(for: "youtube.com"))
+        XCTAssertEqual(site.breakLengthOptions, [1, 5, 10, 15, 18])
+
+        limits.refresh(at: start.addingTimeInterval(12 * 60), calendar: calendar)
+        XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 15, at: start.addingTimeInterval(12 * 60), calendar: calendar))
+        site = try XCTUnwrap(limits.site(for: "youtube.com"))
+        XCTAssertEqual(site.breakLengthOptions, [1, 3])
+        XCTAssertEqual(site.defaultBreakMinutes, 3)
+
+        limits.refresh(at: start.addingTimeInterval(27 * 60), calendar: calendar)
+        XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 3, at: start.addingTimeInterval(27 * 60), calendar: calendar))
+        site = try XCTUnwrap(limits.site(for: "youtube.com"))
+        XCTAssertEqual(site.breakLengthOptions, [])
+    }
+
     func testEndingABreakEarlyChargesTheWholeMinutesUsed() throws {
         let start = try date(2026, 8, 27, 10, 0)
         let endedAt = start.addingTimeInterval(150)

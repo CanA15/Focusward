@@ -27,6 +27,16 @@ struct DailyLimitSite: Codable, Equatable, Identifiable {
         Int(remainingSeconds / 60)
     }
 
+    // The last option always uses all the break time left.
+    var breakLengthOptions: [Int] {
+        guard remainingMinutes > 0 else { return [] }
+        return [1, 5, 10, 15, 30].filter { $0 < remainingMinutes } + [remainingMinutes]
+    }
+
+    var defaultBreakMinutes: Int {
+        min(5, remainingMinutes)
+    }
+
     var usedMinutes: Int {
         Int((usedSeconds / 60).rounded(.up))
     }

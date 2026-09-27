@@ -193,51 +193,31 @@ private struct FocusHero: View {
     }
 }
 
+private enum DurationOption: Hashable {
+    case preset(Int)
+    case custom
+}
+
 private struct DurationPicker: View {
     @EnvironmentObject private var model: FocuswardModel
-    @Namespace private var selection
 
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(FocusDuration.presets, id: \.self) { minutes in
-                option(
-                    FocusDuration.compactLabel(totalMinutes: minutes),
-                    isSelected: !model.usesCustomDuration && model.durationMinutes == minutes
-                ) {
-                    model.selectDurationPreset(minutes)
+        CapsulePicker(
+            options: FocusDuration.presets.map(DurationOption.preset) + [.custom],
+            selection: model.usesCustomDuration ? .custom : .preset(model.durationMinutes),
+            title: { option in
+                switch option {
+                case .preset(let minutes): FocusDuration.compactLabel(totalMinutes: minutes)
+                case .custom: "Custom"
+                }
+            },
+            onSelect: { option in
+                switch option {
+                case .preset(let minutes): model.selectDurationPreset(minutes)
+                case .custom: model.selectCustomDuration()
                 }
             }
-
-            option("Custom", isSelected: model.usesCustomDuration) {
-                model.selectCustomDuration()
-            }
-        }
-        .padding(3)
-        .background(Color.primary.opacity(0.06), in: Capsule())
-    }
-
-    private func option(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            withAnimation(.snappy(duration: 0.3)) { action() }
-        } label: {
-            Text(title)
-                .font(.callout.weight(isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-                .frame(minWidth: 52)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background {
-                    if isSelected {
-                        Capsule()
-                            .fill(Color(nsColor: .controlColor))
-                            .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-                            .matchedGeometryEffect(id: "selection", in: selection)
-                    }
-                }
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        )
     }
 }
 
@@ -491,19 +471,22 @@ private struct BreakRequestSheet: View {
     @Environment(\.dismiss) private var dismiss
     let domain: String
     @State private var step = Step.length
-    @State private var breakMinutes = 5
+    @State private var breakMinutes: Int?
     @State private var failure: String?
 
     private var site: DailyLimitSite? {
         model.dailyLimits.site(for: domain)
     }
 
-    private var maximumBreakMinutes: Int {
-        max(site?.remainingMinutes ?? 1, 1)
+    private var breakLengthOptions: [Int] {
+        site?.breakLengthOptions ?? []
     }
 
     private var selectedBreakMinutes: Int {
-        min(breakMinutes, maximumBreakMinutes)
+        if let breakMinutes, breakLengthOptions.contains(breakMinutes) {
+            return breakMinutes
+        }
+        return site?.defaultBreakMinutes ?? 0
     }
 
     var body: some View {
@@ -523,7 +506,7 @@ private struct BreakRequestSheet: View {
             }
         }
         .padding(24)
-        .frame(width: 380)
+        .frame(width: 480)
     }
 
     private var lengthStep: some View {
@@ -531,25 +514,15 @@ private struct BreakRequestSheet: View {
             Text("Take a Break from \(domain)")
                 .font(.headline)
 
-            if maximumBreakMinutes > 1 {
-                HStack {
-                    Slider(
-                        value: Binding(
-                            get: { Double(selectedBreakMinutes) },
-                            set: { breakMinutes = Int($0.rounded()) }
-                        ),
-                        in: 1 ... Double(maximumBreakMinutes),
-                        step: 1
-                    )
-                    .accessibilityLabel("Break length")
-                    .accessibilityValue("\(selectedBreakMinutes) min")
-                    Text("\(selectedBreakMinutes) min")
-                        .monospacedDigit()
-                        .frame(minWidth: 56, alignment: .trailing)
-                }
-            } else {
-                Text("Break length: 1 min")
-            }
+            CapsulePicker(
+                options: breakLengthOptions,
+                selection: selectedBreakMinutes,
+                title: { minutes in
+                    minutes == breakLengthOptions.last ? "All \(minutes) min" : "\(minutes) min"
+                },
+                onSelect: { breakMinutes = $0 }
+            )
+            .accessibilityLabel("Break length")
 
             Text("\(site?.remainingMinutes ?? 0) min of break time left today.")
                 .foregroundStyle(.secondary)
@@ -726,6 +699,45 @@ private struct HoldToConfirmButton: View {
 }
 
 // MARK: - Shared controls
+
+private struct CapsulePicker<Option: Hashable>: View {
+    let options: [Option]
+    let selection: Option
+    let title: (Option) -> String
+    let onSelect: (Option) -> Void
+    @Namespace private var selectionNamespace
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(options, id: \.self) { option in
+                let isSelected = option == selection
+                Button {
+                    withAnimation(.snappy(duration: 0.3)) { onSelect(option) }
+                } label: {
+                    Text(title(option))
+                        .font(.callout.weight(isSelected ? .semibold : .regular))
+                        .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+                        .frame(minWidth: 52)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background {
+                            if isSelected {
+                                Capsule()
+                                    .fill(Color(nsColor: .controlColor))
+                                    .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                                    .matchedGeometryEffect(id: "selection", in: selectionNamespace)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .background(Color.primary.opacity(0.06), in: Capsule())
+    }
+}
 
 private struct WebsiteRow: View {
     let domain: String
