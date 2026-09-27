@@ -34,4 +34,8 @@ enum DomainMatcher {
             normalizedHostname == rule || normalizedHostname.hasSuffix(".\(rule)")
         }
     }
+
+    static func rulesOverlap(_ first: String, _ second: String) -> Bool {
+        isBlocked(hostname: first, by: [second]) || isBlocked(hostname: second, by: [first])
+    }
 }

@@ -26,6 +26,14 @@ final class DomainMatcherTests: XCTestCase {
         XCTAssertFalse(DomainMatcher.isBlocked(hostname: "example.com", by: rules))
     }
 
+    func testDetectsRulesThatCoverTheSameHostnames() {
+        XCTAssertTrue(DomainMatcher.rulesOverlap("youtube.com", "youtube.com"))
+        XCTAssertTrue(DomainMatcher.rulesOverlap("youtube.com", "m.youtube.com"))
+        XCTAssertTrue(DomainMatcher.rulesOverlap("m.youtube.com", "youtube.com"))
+        XCTAssertFalse(DomainMatcher.rulesOverlap("youtube.com", "notyoutube.com"))
+        XCTAssertFalse(DomainMatcher.rulesOverlap("m.youtube.com", "www.youtube.com"))
+    }
+
     func testExtractsOnlyTheHostnameFromATabURL() {
         XCTAssertEqual(
             DomainMatcher.hostname(from: "https://www.youtube.com/watch?v=private-value"),

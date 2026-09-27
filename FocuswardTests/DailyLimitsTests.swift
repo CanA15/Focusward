@@ -12,12 +12,12 @@ final class DailyLimitsTests: XCTestCase {
         let start = try date(2026, 8, 27, 10, 0)
         var limits = try limits(sites: ["youtube.com": 30], at: start, active: false)
 
-        XCTAssertNil(limits.blockingSite(for: "youtube.com", at: start))
+        XCTAssertNil(limits.blockingSite(for: "youtube.com"))
 
         limits.setActive(true, at: start, calendar: calendar)
 
-        XCTAssertEqual(limits.blockingSite(for: "m.youtube.com", at: start)?.domain, "youtube.com")
-        XCTAssertNil(limits.blockingSite(for: "example.com", at: start))
+        XCTAssertEqual(limits.blockingSite(for: "m.youtube.com")?.domain, "youtube.com")
+        XCTAssertNil(limits.blockingSite(for: "example.com"))
     }
 
     func testBreakOpensOnlyItsSiteUntilTheBreakEnds() throws {
@@ -27,12 +27,12 @@ final class DailyLimitsTests: XCTestCase {
 
         XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 10, at: start, calendar: calendar))
 
-        let duringBreak = start.addingTimeInterval(5 * 60)
-        XCTAssertNil(limits.blockingSite(for: "www.youtube.com", at: duringBreak))
-        XCTAssertNotNil(limits.blockingSite(for: "reddit.com", at: duringBreak))
-        XCTAssertNotNil(limits.blockingSite(for: "youtube.com", at: breakEnd))
+        limits.refresh(at: start.addingTimeInterval(5 * 60), calendar: calendar)
+        XCTAssertNil(limits.blockingSite(for: "www.youtube.com"))
+        XCTAssertNotNil(limits.blockingSite(for: "reddit.com"))
 
         limits.refresh(at: breakEnd, calendar: calendar)
+        XCTAssertNotNil(limits.blockingSite(for: "youtube.com"))
 
         let site = try XCTUnwrap(limits.site(for: "youtube.com"))
         XCTAssertNil(site.activeBreak)
@@ -71,8 +71,10 @@ final class DailyLimitsTests: XCTestCase {
         let site = try XCTUnwrap(limits.site(for: "youtube.com"))
         XCTAssertNil(site.activeBreak)
         XCTAssertEqual(site.usedSeconds, 3 * 60)
+        XCTAssertEqual(site.remainingMinutes(afterBreakOf: 20), 7)
+        XCTAssertEqual(site.remainingMinutes(afterBreakOf: 30), 0)
         XCTAssertEqual(site.breakCount, 1)
-        XCTAssertNotNil(limits.blockingSite(for: "youtube.com", at: endedAt))
+        XCTAssertNotNil(limits.blockingSite(for: "youtube.com"))
         XCTAssertFalse(limits.endBreak(for: "youtube.com", at: endedAt, calendar: calendar))
     }
 
@@ -88,7 +90,7 @@ final class DailyLimitsTests: XCTestCase {
         XCTAssertNil(site.activeBreak)
         XCTAssertEqual(site.usedSeconds, 0)
         XCTAssertEqual(site.breakCount, 0)
-        XCTAssertNotNil(limits.blockingSite(for: "youtube.com", at: nextDay))
+        XCTAssertNotNil(limits.blockingSite(for: "youtube.com"))
         XCTAssertEqual(limits.periodStart, calendar.startOfDay(for: nextDay))
     }
 
@@ -105,19 +107,30 @@ final class DailyLimitsTests: XCTestCase {
         XCTAssertEqual(site.breakCount, 1)
     }
 
-    func testSessionRulesEndOnlyTheBreaksTheyBlock() throws {
+    func testSessionRulesEndOnlyTheBreaksTheyOverlap() throws {
         let start = try date(2026, 8, 27, 10, 0)
         let sessionStart = start.addingTimeInterval(90)
         var limits = try limits(sites: ["youtube.com": 30, "reddit.com": 30], at: start)
 
         XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 10, at: start, calendar: calendar))
         XCTAssertTrue(limits.startBreak(for: "reddit.com", minutes: 10, at: start, calendar: calendar))
-        limits.endBreaks(blockedBy: ["youtube.com", "m.reddit.com"], at: sessionStart, calendar: calendar)
+        limits.endBreaks(overlapping: ["m.youtube.com", "example.com"], at: sessionStart, calendar: calendar)
 
         let youtube = try XCTUnwrap(limits.site(for: "youtube.com"))
         XCTAssertNil(youtube.activeBreak)
         XCTAssertEqual(youtube.usedSeconds, 2 * 60)
         XCTAssertNotNil(limits.site(for: "reddit.com")?.activeBreak)
+    }
+
+    func testRejectsASiteThatOverlapsAnExistingRule() throws {
+        let start = try date(2026, 8, 27, 10, 0)
+        var limits = try limits(sites: ["m.youtube.com": 30], at: start, active: false)
+
+        XCTAssertEqual(limits.overlappingSite(for: "youtube.com")?.domain, "m.youtube.com")
+        XCTAssertFalse(limits.addSite(domain: "youtube.com", allowanceMinutes: 30, at: start, calendar: calendar))
+        XCTAssertFalse(limits.addSite(domain: "a.m.youtube.com", allowanceMinutes: 30, at: start, calendar: calendar))
+        XCTAssertNil(limits.overlappingSite(for: "www.youtube.com"))
+        XCTAssertTrue(limits.addSite(domain: "music.youtube.com", allowanceMinutes: 30, at: start, calendar: calendar))
     }
 
     func testLocksConfigurationWhileDailyLimitsAreActive() throws {
@@ -163,6 +176,8 @@ final class DailyLimitsTests: XCTestCase {
         let site = try XCTUnwrap(limits.site(for: "youtube.com"))
         XCTAssertEqual(site.allowanceMinutes, 30)
         XCTAssertEqual(site.usedSeconds, 90)
+        XCTAssertEqual(site.usedMinutes, 2)
+        XCTAssertEqual(site.remainingMinutes, 28)
         XCTAssertNil(site.activeBreak)
         XCTAssertEqual(site.breakCount, 0)
     }

@@ -27,6 +27,10 @@ struct DailyLimitSite: Codable, Equatable, Identifiable {
         Int(remainingSeconds / 60)
     }
 
+    var usedMinutes: Int {
+        Int((usedSeconds / 60).rounded(.up))
+    }
+
     init(domain: String, allowanceMinutes: Int) {
         self.domain = domain
         self.allowanceMinutes = allowanceMinutes
@@ -45,8 +49,8 @@ struct DailyLimitSite: Codable, Equatable, Identifiable {
         breakCount = try container.decodeIfPresent(Int.self, forKey: .breakCount) ?? 0
     }
 
-    func isOnBreak(at date: Date) -> Bool {
-        activeBreak.map { date < $0.end } ?? false
+    func remainingMinutes(afterBreakOf minutes: Int) -> Int {
+        max(0, remainingMinutes - minutes)
     }
 
     mutating func startBreak(minutes: Int, at date: Date) -> Bool {
@@ -118,7 +122,7 @@ struct DailyLimits: Codable, Equatable {
     ) -> Bool {
         guard !isActive else { return false }
         guard let normalized = DomainMatcher.normalizeRule(domain) else { return false }
-        guard !sites.contains(where: { $0.domain == normalized }) else { return false }
+        guard overlappingSite(for: normalized) == nil else { return false }
 
         refresh(at: date, calendar: calendar)
         sites.append(
@@ -187,13 +191,13 @@ struct DailyLimits: Codable, Equatable {
     }
 
     mutating func endBreaks(
-        blockedBy rules: [String],
+        overlapping rules: [String],
         at date: Date,
         calendar: Calendar = .current
     ) {
         refresh(at: date, calendar: calendar)
         for index in sites.indices
-        where DomainMatcher.isBlocked(hostname: sites[index].domain, by: rules) {
+        where rules.contains(where: { DomainMatcher.rulesOverlap($0, sites[index].domain) }) {
             sites[index].endBreak(at: date)
         }
     }
@@ -217,11 +221,16 @@ struct DailyLimits: Codable, Equatable {
         sites.first { $0.domain == domain }
     }
 
-    func blockingSite(for hostname: String, at date: Date) -> DailyLimitSite? {
+    // Call refresh first so that a break that has ended no longer opens its site.
+    func blockingSite(for hostname: String) -> DailyLimitSite? {
         guard isActive else { return nil }
         return sites.first {
-            DomainMatcher.isBlocked(hostname: hostname, by: [$0.domain]) && !$0.isOnBreak(at: date)
+            DomainMatcher.isBlocked(hostname: hostname, by: [$0.domain]) && $0.activeBreak == nil
         }
+    }
+
+    func overlappingSite(for domain: String) -> DailyLimitSite? {
+        sites.first { DomainMatcher.rulesOverlap($0.domain, domain) }
     }
 
     func nextReset(calendar: Calendar = .current) -> Date? {

@@ -372,7 +372,12 @@ private struct DailyLimitsView: View {
         }
         .formStyle(.grouped)
         .sheet(item: $confirmation) { confirmation in
-            DailyConfirmationSheet(confirmation: confirmation)
+            switch confirmation {
+            case .startBreak(let domain):
+                BreakRequestSheet(domain: domain)
+            case .turnOff:
+                TurnOffDailyLimitsSheet()
+            }
         }
         .task {
             while !Task.isCancelled {
@@ -406,7 +411,7 @@ private struct DailyLimitRow: View {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         Text(statusText(at: context.date))
                             .font(.callout)
-                            .foregroundStyle(site.remainingMinutes == 0 ? Color.red : Color.secondary)
+                            .foregroundStyle(isOutOfBreakTime ? Color.red : Color.secondary)
                             .monospacedDigit()
                     }
                 }
@@ -438,10 +443,14 @@ private struct DailyLimitRow: View {
             ProgressView(value: min(max(site.usedSeconds / site.allowanceSeconds, 0), 1))
                 .progressViewStyle(.linear)
                 .labelsHidden()
-                .tint(site.remainingMinutes == 0 ? Color.red : Color.accentColor)
+                .tint(isOutOfBreakTime ? Color.red : Color.accentColor)
                 .animation(.smooth, value: site.usedSeconds)
         }
         .padding(.vertical, 4)
+    }
+
+    private var isOutOfBreakTime: Bool {
+        site.activeBreak == nil && site.remainingMinutes == 0
     }
 
     private func statusText(at date: Date) -> String {
@@ -471,7 +480,7 @@ private enum DailyConfirmation: Identifiable {
     }
 }
 
-private struct DailyConfirmationSheet: View {
+private struct BreakRequestSheet: View {
     private enum Step {
         case length
         case confirm
@@ -480,24 +489,13 @@ private struct DailyConfirmationSheet: View {
 
     @EnvironmentObject private var model: FocuswardModel
     @Environment(\.dismiss) private var dismiss
-    let confirmation: DailyConfirmation
-    @State private var step: Step
-    @State private var breakMinutes: Int
-
-    init(confirmation: DailyConfirmation) {
-        self.confirmation = confirmation
-        switch confirmation {
-        case .startBreak:
-            _step = State(initialValue: .length)
-        case .turnOff:
-            _step = State(initialValue: .confirm)
-        }
-        _breakMinutes = State(initialValue: 5)
-    }
+    let domain: String
+    @State private var step = Step.length
+    @State private var breakMinutes = 5
+    @State private var failure: String?
 
     private var site: DailyLimitSite? {
-        guard case .startBreak(let domain) = confirmation else { return nil }
-        return model.dailyLimits.site(for: domain)
+        model.dailyLimits.site(for: domain)
     }
 
     private var maximumBreakMinutes: Int {
@@ -510,24 +508,17 @@ private struct DailyConfirmationSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            switch (confirmation, step) {
-            case (.startBreak(let domain), .length):
-                lengthStep(domain: domain)
-            case (.startBreak, .confirm):
-                breakConfirmStep
-            case (.startBreak, .hold):
-                holdStep(
+            switch step {
+            case .length:
+                lengthStep
+            case .confirm:
+                confirmStep
+            case .hold:
+                HoldStep(
                     title: "Hold to Start the Break",
                     buttonTitle: "Hold to Start",
+                    failure: failure,
                     onComplete: startBreak
-                )
-            case (.turnOff, .confirm), (.turnOff, .length):
-                turnOffConfirmStep
-            case (.turnOff, .hold):
-                holdStep(
-                    title: "Hold to Turn Off Daily Limits",
-                    buttonTitle: "Hold to Turn Off",
-                    onComplete: turnOff
                 )
             }
         }
@@ -535,7 +526,7 @@ private struct DailyConfirmationSheet: View {
         .frame(width: 380)
     }
 
-    private func lengthStep(domain: String) -> some View {
+    private var lengthStep: some View {
         Group {
             Text("Take a Break from \(domain)")
                 .font(.headline)
@@ -563,72 +554,125 @@ private struct DailyConfirmationSheet: View {
             Text("\(site?.remainingMinutes ?? 0) min of break time left today.")
                 .foregroundStyle(.secondary)
 
-            buttons(cancelTitle: "Cancel", continueTitle: "Continue") {
+            ConfirmationButtons(cancelTitle: "Cancel", continueTitle: "Continue") {
                 step = .confirm
             }
         }
     }
 
-    private var breakConfirmStep: some View {
+    private var confirmStep: some View {
         Group {
             Text("Are You Sure?")
                 .font(.headline)
 
             if let site {
-                let usedMinutes = Int((site.usedSeconds / 60).rounded(.up))
-                Text("You took \(breakCountText(site.breakCount)) on \(site.domain) today. You used \(usedMinutes) of \(site.allowanceMinutes) minutes.")
-                Text("After this break, you will have \(max(0, site.remainingMinutes - selectedBreakMinutes)) min of break time left today.")
+                Text("You took \(breakCountText(site.breakCount)) on \(site.domain) today. You used \(site.usedMinutes) of \(site.allowanceMinutes) minutes.")
+                Text("After this break, you will have \(site.remainingMinutes(afterBreakOf: selectedBreakMinutes)) min of break time left today.")
                     .foregroundStyle(.secondary)
             }
 
-            buttons(cancelTitle: "Not Now", continueTitle: "Yes, Continue") {
+            ConfirmationButtons(cancelTitle: "Not Now", continueTitle: "Yes, Continue") {
                 step = .hold
             }
         }
     }
 
-    private var turnOffConfirmStep: some View {
-        Group {
-            Text("Turn Off Daily Limits?")
-                .font(.headline)
-            Text("All listed websites open with no limit until you turn on Daily Limits again. A break in progress ends.")
-                .foregroundStyle(.secondary)
-
-            buttons(cancelTitle: "Keep On", continueTitle: "Continue") {
-                step = .hold
+    private func startBreak() {
+        do {
+            try withAnimation(.snappy) {
+                try model.startDailyBreak(for: domain, minutes: selectedBreakMinutes)
             }
+            dismiss()
+        } catch {
+            failure = error.localizedDescription
         }
     }
 
-    private func holdStep(
-        title: String,
-        buttonTitle: String,
-        onComplete: @escaping () -> Void
-    ) -> some View {
-        Group {
-            Text(title)
-                .font(.headline)
-
-            HoldToConfirmButton(title: buttonTitle, action: onComplete)
-                .frame(maxWidth: .infinity)
-
-            Text("Hold for \(Int(HoldToConfirmButton.duration)) seconds. Releasing early resets the progress.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-
-            HStack {
-                Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-            }
+    private func breakCountText(_ count: Int) -> String {
+        switch count {
+        case 0: "no breaks"
+        case 1: "1 break"
+        default: "\(count) breaks"
         }
     }
+}
 
-    private func buttons(
-        cancelTitle: String,
-        continueTitle: String,
-        onContinue: @escaping () -> Void
-    ) -> some View {
+private struct TurnOffDailyLimitsSheet: View {
+    private enum Step {
+        case confirm
+        case hold
+    }
+
+    @EnvironmentObject private var model: FocuswardModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var step = Step.confirm
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            switch step {
+            case .confirm:
+                Text("Turn Off Daily Limits?")
+                    .font(.headline)
+                Text("All listed websites open with no limit until you turn on Daily Limits again. A break in progress ends.")
+                    .foregroundStyle(.secondary)
+
+                ConfirmationButtons(cancelTitle: "Keep On", continueTitle: "Continue") {
+                    step = .hold
+                }
+            case .hold:
+                HoldStep(
+                    title: "Hold to Turn Off Daily Limits",
+                    buttonTitle: "Hold to Turn Off",
+                    failure: nil
+                ) {
+                    withAnimation(.snappy) { model.setDailyLimitsActive(false) }
+                    dismiss()
+                }
+            }
+        }
+        .padding(24)
+        .frame(width: 380)
+    }
+}
+
+private struct HoldStep: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    let buttonTitle: String
+    let failure: String?
+    let onComplete: () -> Void
+
+    var body: some View {
+        Text(title)
+            .font(.headline)
+
+        HoldToConfirmButton(title: buttonTitle, action: onComplete)
+            .frame(maxWidth: .infinity)
+
+        Text("Hold for \(Int(HoldToConfirmButton.duration)) seconds. Releasing early resets the progress.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+
+        if let failure {
+            Text(failure)
+                .foregroundStyle(.red)
+        }
+
+        HStack {
+            Spacer()
+            Button("Cancel", role: .cancel) { dismiss() }
+                .keyboardShortcut(.cancelAction)
+        }
+    }
+}
+
+private struct ConfirmationButtons: View {
+    @Environment(\.dismiss) private var dismiss
+    let cancelTitle: String
+    let continueTitle: String
+    let onContinue: () -> Void
+
+    var body: some View {
         HStack {
             Spacer()
             Button(cancelTitle, role: .cancel) { dismiss() }
@@ -637,28 +681,6 @@ private struct DailyConfirmationSheet: View {
                 withAnimation(.snappy) { onContinue() }
             }
             .buttonStyle(.borderedProminent)
-        }
-    }
-
-    private func startBreak() {
-        if let site {
-            withAnimation(.snappy) {
-                _ = model.startDailyBreak(for: site.domain, minutes: selectedBreakMinutes)
-            }
-        }
-        dismiss()
-    }
-
-    private func turnOff() {
-        withAnimation(.snappy) { model.setDailyLimitsActive(false) }
-        dismiss()
-    }
-
-    private func breakCountText(_ count: Int) -> String {
-        switch count {
-        case 0: "no breaks"
-        case 1: "1 break"
-        default: "\(count) breaks"
         }
     }
 }

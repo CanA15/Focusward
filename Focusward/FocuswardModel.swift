@@ -71,6 +71,20 @@ struct EarlyEndDisplayState {
     }
 }
 
+enum DailyBreakError: LocalizedError {
+    case blockedBySession(domain: String)
+    case unavailable(domain: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .blockedBySession(let domain):
+            "The focus session blocks \(domain)."
+        case .unavailable(let domain):
+            "The break for \(domain) cannot start. Check the break time left today."
+        }
+    }
+}
+
 @MainActor
 final class FocuswardModel: ObservableObject {
     static let shared = FocuswardModel()
@@ -266,8 +280,10 @@ final class FocuswardModel: ObservableObject {
             dailyLimitsMessage = "Enter a valid domain such as youtube.com"
             return
         }
-        guard dailyLimits.site(for: normalized) == nil else {
-            dailyLimitsMessage = "A daily limit already exists for \(normalized)"
+        if let existing = dailyLimits.overlappingSite(for: normalized) {
+            dailyLimitsMessage = existing.domain == normalized
+                ? "A daily limit already exists for \(normalized)"
+                : "\(normalized) overlaps the rule for \(existing.domain)"
             return
         }
 
@@ -325,28 +341,21 @@ final class FocuswardModel: ObservableObject {
     }
 
     func isBlockedBySession(_ domain: String) -> Bool {
-        isSessionActive && DomainMatcher.isBlocked(hostname: domain, by: domains)
+        isSessionActive && domains.contains { DomainMatcher.rulesOverlap($0, domain) }
     }
 
-    @discardableResult
-    func startDailyBreak(for domain: String, minutes: Int) -> Bool {
+    func startDailyBreak(for domain: String, minutes: Int) throws {
         guard !isBlockedBySession(domain) else {
-            dailyLimitsMessage = "The focus session blocks \(domain)"
-            return false
+            throw DailyBreakError.blockedBySession(domain: domain)
         }
         guard dailyLimits.startBreak(for: domain, minutes: minutes, at: Date()) else {
-            dailyLimitsMessage = "The break for \(domain) could not start"
-            return false
+            throw DailyBreakError.unavailable(domain: domain)
         }
-
-        dailyLimitsMessage = "Break started for \(domain)"
         persistDailyLimits()
-        return true
     }
 
     func endDailyBreak(for domain: String) {
         guard dailyLimits.endBreak(for: domain, at: Date()) else { return }
-        dailyLimitsMessage = "Break ended for \(domain)"
         persistDailyLimits()
     }
 
@@ -470,7 +479,7 @@ final class FocuswardModel: ObservableObject {
                         mode: "session"
                     )
                 } else if
-                    let site = dailyLimits.blockingSite(for: hostname, at: date),
+                    let site = dailyLimits.blockingSite(for: hostname),
                     let reset = dailyLimits.nextReset()
                 {
                     destination = shieldURL(
@@ -557,7 +566,7 @@ final class FocuswardModel: ObservableObject {
 
     private func endDailyBreaksBlockedBySession() {
         let previousDailyLimits = dailyLimits
-        dailyLimits.endBreaks(blockedBy: domains, at: Date())
+        dailyLimits.endBreaks(overlapping: domains, at: Date())
         if dailyLimits != previousDailyLimits {
             persistDailyLimits()
         }
