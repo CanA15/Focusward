@@ -25,6 +25,8 @@ A break uses clock time. Time counts while Safari is in the background, while th
 
 Focusward resets all break time and ends all breaks at local midnight. Deactivation ends a break in progress and stops enforcement. Deactivation does not clear used break time. Configuration controls are available only while Daily Limits are inactive.
 
+While Daily Limits are active, an ordinary quit is refused until the user turns off Daily Limits. A logout, restart, or shutdown can still quit Focusward.
+
 When both features apply to the same website, a timed session has priority. The user cannot start a break on a website that a running session blocks. A session start ends a break on a website that the session blocks, and Focusward charges only the time used.
 
 ## Intentional limits

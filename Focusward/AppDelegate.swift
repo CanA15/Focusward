@@ -75,8 +75,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let model = FocuswardModel.shared
         model.persistStateForTermination()
-        guard model.isSessionActive else {
-            return .terminateNow
+        if !model.isSessionActive {
+            guard model.dailyLimits.isActive, !isSystemQuit else {
+                return .terminateNow
+            }
+
+            sender.activate(ignoringOtherApps: true)
+
+            let alert = NSAlert()
+            alert.alertStyle = .informational
+            alert.messageText = "Daily Limits are active"
+            alert.informativeText = "To quit Focusward, turn off Daily Limits in the Daily Limits tab first."
+            alert.addButton(withTitle: "Stay Focused")
+            alert.runModal()
+            return .terminateCancel
         }
 
         sender.activate(ignoringOtherApps: true)
@@ -110,6 +122,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             openMainWindow?()
         }
+    }
+
+    // Daily Limits stay on all day, so they must not stop a logout, restart, or shutdown.
+    private var isSystemQuit: Bool {
+        guard
+            let reason = NSAppleEventManager.shared().currentAppleEvent?
+                .attributeDescriptor(forKeyword: kAEQuitReason)?
+                .enumCodeValue
+        else {
+            return false
+        }
+
+        return [kAELogOut, kAEReallyLogOut, kAEShowRestartDialog, kAERestart, kAEShowShutdownDialog, kAEShutDown]
+            .map { OSType($0) }
+            .contains(reason)
     }
 
     private var isRunningTestsOrPreviews: Bool {
