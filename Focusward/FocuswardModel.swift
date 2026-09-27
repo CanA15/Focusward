@@ -1,76 +1,6 @@
 import AppKit
 import Foundation
 
-struct EarlyEndCountdown {
-    static let duration: TimeInterval = 90
-
-    private(set) var elapsed: TimeInterval
-    private(set) var resumedAt: Date?
-
-    init(remaining: TimeInterval = duration) {
-        elapsed = Self.duration - min(max(remaining, 0), Self.duration)
-    }
-
-    var isRunning: Bool { resumedAt != nil }
-
-    mutating func resume(at date: Date) {
-        guard resumedAt == nil, !isReady(at: date) else { return }
-        resumedAt = date
-    }
-
-    mutating func pause(at date: Date) {
-        elapsed = elapsedTime(at: date)
-        resumedAt = nil
-    }
-
-    func elapsedTime(at date: Date) -> TimeInterval {
-        min(
-            Self.duration,
-            elapsed + max(0, resumedAt.map { date.timeIntervalSince($0) } ?? 0)
-        )
-    }
-
-    func remainingTime(at date: Date) -> TimeInterval {
-        max(0, Self.duration - elapsedTime(at: date))
-    }
-
-    func isReady(at date: Date) -> Bool {
-        remainingTime(at: date) <= 0
-    }
-}
-
-struct EarlyEndDisplayState {
-    static let maximumDisplayedSeconds = 330
-    static let updateInterval: TimeInterval = 2
-    private static let durationBands = [5 ... 44, 45 ... 89, 90 ... 179, 180 ... 330]
-
-    let displayedSeconds: Int
-
-    var text: String {
-        guard displayedSeconds >= 60 else { return "\(displayedSeconds)s" }
-        return String(format: "%dm %02ds", displayedSeconds / 60, displayedSeconds % 60)
-    }
-
-    var progress: Double {
-        1 - Double(displayedSeconds) / Double(Self.maximumDisplayedSeconds)
-    }
-
-    static func randomized(elapsedTime: TimeInterval, seed: UInt64) -> Self {
-        let bucket = UInt64(max(0, elapsedTime) / updateInterval)
-        let firstMix = mix(bucket &+ seed &+ 0x9E3779B97F4A7C15)
-        let band = durationBands[Int(firstMix % UInt64(durationBands.count))]
-        let seconds = band.lowerBound + Int(mix(firstMix) % UInt64(band.count))
-        return Self(displayedSeconds: seconds)
-    }
-
-    private static func mix(_ value: UInt64) -> UInt64 {
-        var mixed = value
-        mixed = (mixed ^ (mixed >> 30)) &* 0xBF58476D1CE4E5B9
-        mixed = (mixed ^ (mixed >> 27)) &* 0x94D049BB133111EB
-        return mixed ^ (mixed >> 31)
-    }
-}
-
 enum DailyBreakError: LocalizedError {
     case blockedBySession(domain: String)
     case unavailable(domain: String)
@@ -96,8 +26,6 @@ final class FocuswardModel: ObservableObject {
     @Published private(set) var customHours = 4
     @Published private(set) var customMinutes = 0
     @Published private(set) var sessionEnd: Date?
-    @Published private(set) var earlyEndReadyAt: Date?
-    @Published private(set) var isEarlyEndTimerRunning = false
     @Published private(set) var automationMessage = "Ready"
     @Published private(set) var redirectedTabCount = 0
     @Published private(set) var dailyLimits: DailyLimits
@@ -109,9 +37,6 @@ final class FocuswardModel: ObservableObject {
     private let store: SessionStore
     private let safari: SafariAutomation
     private var monitorTask: Task<Void, Never>?
-    private var earlyEndCountdown: EarlyEndCountdown?
-    private var isMainWindowFocused = false
-    private var earlyEndDisplaySeed = UInt64.random(in: .min ... .max)
     private var lastDailyPersistenceAt: Date?
     private var dailyLimitsNeedPersistence = false
 
@@ -143,18 +68,9 @@ final class FocuswardModel: ObservableObject {
 
         if let storedEnd = store.sessionEnd, storedEnd > now {
             self.sessionEnd = storedEnd
-            let remaining = store.earlyEndRemainingSeconds
-                ?? store.earlyEndReadyAt.map {
-                    min(max($0.timeIntervalSince(now), 0), EarlyEndCountdown.duration)
-                }
-            if let remaining {
-                self.earlyEndCountdown = EarlyEndCountdown(remaining: remaining)
-                self.earlyEndReadyAt = now.addingTimeInterval(remaining)
-            }
         } else {
             store.clearSession()
             self.sessionEnd = nil
-            self.earlyEndReadyAt = nil
         }
 
         updateMonitor()
@@ -177,10 +93,6 @@ final class FocuswardModel: ObservableObject {
 
     var canStartSession: Bool {
         !domains.isEmpty && selectedDurationMinutes > 0
-    }
-
-    var hasEarlyEndRequest: Bool {
-        earlyEndCountdown != nil
     }
 
     var isProtectionActive: Bool {
@@ -254,14 +166,9 @@ final class FocuswardModel: ObservableObject {
 
         let end = Date().addingTimeInterval(TimeInterval(selectedDurationMinutes * 60))
         sessionEnd = end
-        earlyEndCountdown = nil
-        earlyEndReadyAt = nil
-        isEarlyEndTimerRunning = false
         redirectedTabCount = 0
         automationMessage = "Starting Safari monitoring…"
         store.sessionEnd = end
-        store.earlyEndReadyAt = nil
-        store.earlyEndRemainingSeconds = nil
         endDailyBreaksBlockedBySession()
         updateMonitor()
     }
@@ -371,56 +278,9 @@ final class FocuswardModel: ObservableObject {
         }
     }
 
-    func requestEarlyEnd() {
-        guard isSessionActive, earlyEndCountdown == nil else { return }
-        let now = Date()
-        var countdown = EarlyEndCountdown()
-        if isMainWindowFocused {
-            countdown.resume(at: now)
-        }
-        earlyEndCountdown = countdown
-        earlyEndDisplaySeed = UInt64.random(in: .min ... .max)
-        isEarlyEndTimerRunning = countdown.isRunning
-        persistEarlyEndState(at: now, updateProjection: true)
-    }
-
-    func cancelEarlyEnd() {
-        earlyEndCountdown = nil
-        earlyEndReadyAt = nil
-        isEarlyEndTimerRunning = false
-        store.earlyEndReadyAt = nil
-        store.earlyEndRemainingSeconds = nil
-    }
-
-    func confirmEarlyEnd() {
-        guard earlyEndCountdown?.isReady(at: Date()) == true else { return }
+    func endSessionEarly() {
+        guard isSessionActive else { return }
         finishSession(message: "Session ended early")
-    }
-
-    func setMainWindowFocused(_ focused: Bool) {
-        guard focused != isMainWindowFocused else { return }
-        let now = Date()
-
-        if focused {
-            earlyEndCountdown?.resume(at: now)
-        } else {
-            earlyEndCountdown?.pause(at: now)
-        }
-
-        isMainWindowFocused = focused
-        isEarlyEndTimerRunning = earlyEndCountdown?.isRunning == true
-        persistEarlyEndState(at: now, updateProjection: true)
-    }
-
-    func earlyEndIsReady(at date: Date) -> Bool {
-        earlyEndCountdown?.isReady(at: date) == true
-    }
-
-    func earlyEndDisplay(at date: Date) -> EarlyEndDisplayState {
-        EarlyEndDisplayState.randomized(
-            elapsedTime: earlyEndCountdown?.elapsedTime(at: date) ?? 0,
-            seed: earlyEndDisplaySeed
-        )
     }
 
     private func updateMonitor() {
@@ -435,9 +295,7 @@ final class FocuswardModel: ObservableObject {
         monitorTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                let now = Date()
-                self.persistEarlyEndState(at: now)
-                self.monitorSafari(at: now)
+                self.monitorSafari(at: Date())
                 try? await Task.sleep(for: .milliseconds(500))
             }
         }
@@ -556,9 +414,6 @@ final class FocuswardModel: ObservableObject {
 
     private func finishSession(message: String) {
         sessionEnd = nil
-        earlyEndCountdown = nil
-        earlyEndReadyAt = nil
-        isEarlyEndTimerRunning = false
         store.clearSession()
         automationMessage = message
         updateMonitor()
@@ -575,17 +430,6 @@ final class FocuswardModel: ObservableObject {
     private func persistPreferredDuration() {
         guard selectedDurationMinutes > 0 else { return }
         store.preferredDurationMinutes = selectedDurationMinutes
-    }
-
-    private func persistEarlyEndState(at date: Date, updateProjection: Bool = false) {
-        guard let countdown = earlyEndCountdown else { return }
-        let remaining = countdown.remainingTime(at: date)
-        let projectedReadyAt = date.addingTimeInterval(remaining)
-        store.earlyEndRemainingSeconds = remaining
-        store.earlyEndReadyAt = projectedReadyAt
-        if updateProjection {
-            earlyEndReadyAt = projectedReadyAt
-        }
     }
 
     private func persistDailyLimitsIfNeeded(at date: Date) {

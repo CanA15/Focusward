@@ -25,7 +25,6 @@ struct FocuswardApp: App {
 
 private struct MainWindowContent: View {
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.controlActiveState) private var controlActiveState
     @ObservedObject var model: FocuswardModel
     let appDelegate: AppDelegate
 
@@ -42,11 +41,6 @@ private struct MainWindowContent: View {
                 appDelegate.openMainWindow = {
                     openWindow(id: "main")
                 }
-                model.setMainWindowFocused(controlActiveState == .key)
             }
-            .onChange(of: controlActiveState) { _, newState in
-                model.setMainWindowFocused(newState == .key)
-            }
-            .onDisappear { model.setMainWindowFocused(false) }
     }
 }

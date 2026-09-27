@@ -39,27 +39,6 @@ final class SessionStore {
         }
     }
 
-    var earlyEndReadyAt: Date? {
-        get { date(forKey: Key.earlyEndReadyAt) }
-        set { set(newValue, forKey: Key.earlyEndReadyAt) }
-    }
-
-    var earlyEndRemainingSeconds: TimeInterval? {
-        get {
-            guard defaults.object(forKey: Key.earlyEndRemainingSeconds) != nil else {
-                return nil
-            }
-            return max(0, defaults.double(forKey: Key.earlyEndRemainingSeconds))
-        }
-        set {
-            if let newValue {
-                defaults.set(max(0, newValue), forKey: Key.earlyEndRemainingSeconds)
-            } else {
-                defaults.removeObject(forKey: Key.earlyEndRemainingSeconds)
-            }
-        }
-    }
-
     var dailyLimits: DailyLimits? {
         get {
             guard let data = defaults.data(forKey: Key.dailyLimits) else { return nil }
@@ -79,8 +58,9 @@ final class SessionStore {
 
     func clearSession() {
         sessionEnd = nil
-        earlyEndReadyAt = nil
-        earlyEndRemainingSeconds = nil
+        // Earlier versions saved an early-end cooldown. Remove the stale values.
+        defaults.removeObject(forKey: Key.earlyEndReadyAt)
+        defaults.removeObject(forKey: Key.earlyEndRemainingSeconds)
     }
 
     private func date(forKey key: String) -> Date? {

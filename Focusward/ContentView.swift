@@ -222,63 +222,67 @@ private struct DurationPicker: View {
 }
 
 private struct EarlyEndControls: View {
-    @EnvironmentObject private var model: FocuswardModel
+    @State private var isConfirming = false
 
     var body: some View {
-        if model.hasEarlyEndRequest {
-            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { context in
-                let display = model.earlyEndDisplay(at: context.date)
-
-                if model.earlyEndIsReady(at: context.date) {
-                    HStack {
-                        Text("The cooldown is complete. Confirm to end the session.")
-                        Spacer()
-                        Button("Keep Session", action: model.cancelEarlyEnd)
-                        Button("End Session", role: .destructive) {
-                            withAnimation(.smooth(duration: 0.35)) { model.confirmEarlyEnd() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.red)
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Cooldown · about \(display.text) left")
-                                    .monospacedDigit()
-                                Text(
-                                    model.isEarlyEndTimerRunning
-                                        ? "The cooldown advances while this window is in front."
-                                        : "Paused. Bring this window to the front to continue."
-                                )
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button("Cancel", action: model.cancelEarlyEnd)
-                        }
-
-                        ProgressView(value: display.progress)
-                            .progressViewStyle(.linear)
-                            .labelsHidden()
-                            .animation(.easeInOut(duration: 0.5), value: display.progress)
-                            .accessibilityLabel("Early-end request in progress")
-                            .accessibilityValue("Waiting")
-                    }
-                }
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Need to stop?")
+                Text("To end the session early, you confirm and then hold a button.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
-        } else {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Need to stop?")
-                    Text("Ending early starts a cooldown. You can cancel it at any time.")
-                        .font(.callout)
+            Spacer()
+            Button("End Session Early…") { isConfirming = true }
+        }
+        .sheet(isPresented: $isConfirming) {
+            EndSessionSheet()
+        }
+    }
+}
+
+private struct EndSessionSheet: View {
+    private enum Step {
+        case confirm
+        case hold
+    }
+
+    @EnvironmentObject private var model: FocuswardModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var step = Step.confirm
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            switch step {
+            case .confirm:
+                Text("End the Session Early?")
+                    .font(.headline)
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text("The session has \(FocusDuration.label(totalMinutes: minutesLeft(at: context.date))) left. All blocked websites open again.")
                         .foregroundStyle(.secondary)
                 }
-                Spacer()
-                Button("Request Early End", action: model.requestEarlyEnd)
+
+                ConfirmationButtons(cancelTitle: "Keep Session", continueTitle: "Continue") {
+                    step = .hold
+                }
+            case .hold:
+                HoldStep(
+                    title: "Hold to End the Session",
+                    buttonTitle: "Hold to End",
+                    failure: nil
+                ) {
+                    withAnimation(.smooth(duration: 0.35)) { model.endSessionEarly() }
+                    dismiss()
+                }
             }
         }
+        .padding(24)
+        .frame(width: 380)
+    }
+
+    private func minutesLeft(at date: Date) -> Int {
+        let seconds = (model.sessionEnd ?? date).timeIntervalSince(date)
+        return max(0, Int((seconds / 60).rounded(.up)))
     }
 }
 
@@ -951,18 +955,6 @@ struct MenuBarContentView: View {
             VStack(spacing: 0) {
                 Button(action: showMainWindow) {
                     Label("Open Focusward", systemImage: "macwindow")
-                }
-
-                if model.isSessionActive {
-                    if model.hasEarlyEndRequest {
-                        Button(action: model.cancelEarlyEnd) {
-                            Label("Cancel Early-End Request", systemImage: "xmark.circle")
-                        }
-                    } else {
-                        Button(action: model.requestEarlyEnd) {
-                            Label("Request Early End", systemImage: "hourglass")
-                        }
-                    }
                 }
 
                 ForEach(sitesOnBreak) { site in

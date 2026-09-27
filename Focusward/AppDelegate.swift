@@ -75,35 +75,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let model = FocuswardModel.shared
         model.persistStateForTermination()
-        if !model.isSessionActive {
-            guard model.dailyLimits.isActive, !isSystemQuit else {
-                return .terminateNow
-            }
-
-            sender.activate(ignoringOtherApps: true)
-
-            let alert = NSAlert()
-            alert.alertStyle = .informational
-            alert.messageText = "Daily Limits are active"
-            alert.informativeText = "To quit Focusward, turn off Daily Limits in the Daily Limits tab first."
-            alert.addButton(withTitle: "Stay Focused")
-            alert.runModal()
-            return .terminateCancel
-        }
-
-        sender.activate(ignoringOtherApps: true)
+        guard !isSystemQuit else { return .terminateNow }
 
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = "A Focusward session is active"
-        alert.informativeText = "Ordinary quitting is paused until the session ends. You can begin a cancelable early-end request that advances only while Focusward is in front."
-        alert.addButton(withTitle: "Stay Focused")
-        alert.addButton(withTitle: "Request Early End")
-
-        if alert.runModal() == .alertSecondButtonReturn {
-            model.requestEarlyEnd()
+        if model.isSessionActive {
+            alert.messageText = "A focus session is active"
+            alert.informativeText = "To quit Focusward, end the session early in the Focus Session tab first."
+        } else if model.dailyLimits.isActive {
+            alert.messageText = "Daily Limits are active"
+            alert.informativeText = "To quit Focusward, turn off Daily Limits in the Daily Limits tab first."
+        } else {
+            return .terminateNow
         }
 
+        sender.activate(ignoringOtherApps: true)
+        alert.addButton(withTitle: "Stay Focused")
+        alert.runModal()
         return .terminateCancel
     }
 
@@ -124,7 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // Daily Limits stay on all day, so they must not stop a logout, restart, or shutdown.
+    // A session or Daily Limits must not stop a logout, restart, or shutdown.
     private var isSystemQuit: Bool {
         guard
             let reason = NSAppleEventManager.shared().currentAppleEvent?
