@@ -1,5 +1,41 @@
 import AppKit
 
+enum QuitPolicy {
+    enum Decision: Equatable {
+        case allow
+        case refuse(title: String, message: String)
+    }
+
+    // A session or Daily Limits must not stop a logout, restart, or shutdown.
+    private static let systemQuitReasons = Set(
+        [kAELogOut, kAEReallyLogOut, kAEShowRestartDialog, kAERestart, kAEShowShutdownDialog, kAEShutDown]
+            .map { OSType($0) }
+    )
+
+    static func decision(
+        quitReason: OSType?,
+        isSessionActive: Bool,
+        isDailyLimitsActive: Bool
+    ) -> Decision {
+        if let quitReason, systemQuitReasons.contains(quitReason) {
+            return .allow
+        }
+        if isSessionActive {
+            return .refuse(
+                title: "A focus session is active",
+                message: "To quit Focusward, end the session early in the Focus Session tab first."
+            )
+        }
+        if isDailyLimitsActive {
+            return .refuse(
+                title: "Daily Limits are active",
+                message: "To quit Focusward, turn off Daily Limits in the Daily Limits tab first."
+            )
+        }
+        return .allow
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let showMainWindowNotification = Notification.Name(
@@ -75,21 +111,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let model = FocuswardModel.shared
         model.persistStateForTermination()
-        guard !isSystemQuit else { return .terminateNow }
 
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        if model.isSessionActive {
-            alert.messageText = "A focus session is active"
-            alert.informativeText = "To quit Focusward, end the session early in the Focus Session tab first."
-        } else if model.dailyLimits.isActive {
-            alert.messageText = "Daily Limits are active"
-            alert.informativeText = "To quit Focusward, turn off Daily Limits in the Daily Limits tab first."
-        } else {
+        let quitReason = NSAppleEventManager.shared().currentAppleEvent?
+            .attributeDescriptor(forKeyword: kAEQuitReason)?
+            .enumCodeValue
+        let decision = QuitPolicy.decision(
+            quitReason: quitReason,
+            isSessionActive: model.isSessionActive,
+            isDailyLimitsActive: model.dailyLimits.isActive
+        )
+        guard case .refuse(let title, let message) = decision else {
             return .terminateNow
         }
 
         sender.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = title
+        alert.informativeText = message
         alert.addButton(withTitle: "Stay Focused")
         alert.runModal()
         return .terminateCancel
@@ -110,21 +150,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             openMainWindow?()
         }
-    }
-
-    // A session or Daily Limits must not stop a logout, restart, or shutdown.
-    private var isSystemQuit: Bool {
-        guard
-            let reason = NSAppleEventManager.shared().currentAppleEvent?
-                .attributeDescriptor(forKeyword: kAEQuitReason)?
-                .enumCodeValue
-        else {
-            return false
-        }
-
-        return [kAELogOut, kAEReallyLogOut, kAEShowRestartDialog, kAERestart, kAEShowShutdownDialog, kAEShutDown]
-            .map { OSType($0) }
-            .contains(reason)
     }
 
     private var isRunningTestsOrPreviews: Bool {

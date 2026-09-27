@@ -16,6 +16,7 @@
 		B10000000000000000000007 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* ContentView.swift */; };
 		B10000000000000000000008 /* blocked.html in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000018 /* blocked.html */; };
 		B10000000000000000000009 /* DomainMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000020 /* DomainMatcherTests.swift */; };
+		B10000000000000000000030 /* QuitPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000030 /* QuitPolicyTests.swift */; };
 		B10000000000000000000010 /* SessionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000022 /* SessionStoreTests.swift */; };
 		B10000000000000000000011 /* FocusDuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023 /* FocusDuration.swift */; };
 		B10000000000000000000012 /* FocusDurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000024 /* FocusDurationTests.swift */; };
@@ -47,6 +48,7 @@
 		A10000000000000000000018 /* blocked.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = blocked.html; sourceTree = "<group>"; };
 		A10000000000000000000019 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000000000000000000020 /* DomainMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainMatcherTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000030 /* QuitPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitPolicyTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000021 /* FocuswardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FocuswardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000022 /* SessionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStoreTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000023 /* FocusDuration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusDuration.swift; sourceTree = "<group>"; };
@@ -125,6 +127,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000020 /* DomainMatcherTests.swift */,
+				A10000000000000000000030 /* QuitPolicyTests.swift */,
 				A10000000000000000000022 /* SessionStoreTests.swift */,
 				A10000000000000000000024 /* FocusDurationTests.swift */,
 				A10000000000000000000027 /* DailyLimitsTests.swift */,
@@ -246,6 +249,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B10000000000000000000009 /* DomainMatcherTests.swift in Sources */,
+				B10000000000000000000030 /* QuitPolicyTests.swift in Sources */,
 				B10000000000000000000010 /* SessionStoreTests.swift in Sources */,
 				B10000000000000000000012 /* FocusDurationTests.swift in Sources */,
 				B10000000000000000000015 /* DailyLimitsTests.swift in Sources */,
