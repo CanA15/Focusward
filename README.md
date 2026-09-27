@@ -45,6 +45,8 @@ The script builds a universal Release app locally, verifies its code signature a
 
 To update, pull the latest source and run `./install.sh` again.
 
+Focusward does not quit during a focus session or while Daily Limits are on. Before you install or update, end the session and turn off Daily Limits.
+
 The first Safari interaction causes macOS to ask whether Focusward may control Safari. Choose **Allow**. If permission was previously denied, enable Focusward under **System Settings → Privacy & Security → Automation**.
 
 ## Uninstall
