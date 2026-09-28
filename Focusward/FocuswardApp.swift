@@ -20,6 +20,11 @@ struct FocuswardApp: App {
             Image(systemName: model.isProtectionActive ? "shield.fill" : "shield")
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            SettingsView()
+                .environmentObject(model)
+        }
     }
 }
 

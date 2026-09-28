@@ -8,6 +8,7 @@ final class SessionStore {
         static let earlyEndReadyAt = "earlyEndReadyAt"
         static let earlyEndRemainingSeconds = "earlyEndRemainingSeconds"
         static let dailyLimits = "dailyLimits"
+        static let showsNotchBreakTimer = "showsNotchBreakTimer"
     }
 
     private let defaults: UserDefaults
@@ -54,6 +55,11 @@ final class SessionStore {
                 defaults.set(data, forKey: Key.dailyLimits)
             }
         }
+    }
+
+    var showsNotchBreakTimer: Bool {
+        get { defaults.object(forKey: Key.showsNotchBreakTimer) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Key.showsNotchBreakTimer) }
     }
 
     func clearSession() {

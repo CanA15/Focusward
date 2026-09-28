@@ -231,6 +231,16 @@ struct DailyLimits: Codable, Equatable {
         sites.first { $0.domain == domain }
     }
 
+    var sitesOnBreak: [DailyLimitSite] {
+        sites.filter { $0.activeBreak != nil }
+    }
+
+    var nextBreakToEnd: DailyLimitSite? {
+        sitesOnBreak.min {
+            ($0.activeBreak?.end ?? .distantFuture) < ($1.activeBreak?.end ?? .distantFuture)
+        }
+    }
+
     // Call refresh first so that a break that has ended no longer opens its site.
     func blockingSite(for hostname: String) -> DailyLimitSite? {
         guard isActive else { return nil }

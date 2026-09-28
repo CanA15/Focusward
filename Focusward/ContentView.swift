@@ -928,7 +928,7 @@ struct MenuBarContentView: View {
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
                         }
-                        ForEach(sitesOnBreak) { site in
+                        ForEach(model.dailyLimits.sitesOnBreak) { site in
                             TimelineView(.periodic(from: .now, by: 1)) { context in
                                 HStack {
                                     Text("Break · \(site.domain)")
@@ -958,7 +958,7 @@ struct MenuBarContentView: View {
                     Label("Open Focusward", systemImage: "macwindow")
                 }
 
-                ForEach(sitesOnBreak) { site in
+                ForEach(model.dailyLimits.sitesOnBreak) { site in
                     Button {
                         model.endDailyBreak(for: site.domain)
                     } label: {
@@ -978,12 +978,32 @@ struct MenuBarContentView: View {
         .frame(width: 280)
     }
 
-    private var sitesOnBreak: [DailyLimitSite] {
-        model.dailyLimits.sites.filter { $0.activeBreak != nil }
-    }
-
     private func breakSecondsLeft(for site: DailyLimitSite, at date: Date) -> Int {
         max(0, Int(ceil((site.activeBreak?.end ?? date).timeIntervalSince(date))))
+    }
+}
+
+struct SettingsView: View {
+    @EnvironmentObject private var model: FocuswardModel
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle(
+                    "Show the break timer in the notch",
+                    isOn: Binding(
+                        get: { model.showsNotchBreakTimer },
+                        set: { model.setShowsNotchBreakTimer($0) }
+                    )
+                )
+            } footer: {
+                Text("While a Daily Limits break runs, the notch shows the time left. Click the notch to end a break or to open Focusward. A display without a notch does not show the timer.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 440)
+        .fixedSize()
     }
 }
 
@@ -1025,7 +1045,7 @@ private struct MenuRowLabelStyle: LabelStyle {
 
 // MARK: - Formatting
 
-private func countdownText(seconds: Int) -> String {
+func countdownText(seconds: Int) -> String {
     let days = seconds / 86_400
     let hours = (seconds % 86_400) / 3_600
     let minutes = (seconds % 3_600) / 60

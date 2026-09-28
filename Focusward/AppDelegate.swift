@@ -44,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     var openMainWindow: (() -> Void)?
     private var isDuplicateInstance = false
+    private var notchPanelController: NotchPanelController?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         guard !isRunningTestsOrPreviews else { return }
@@ -76,8 +77,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !isDuplicateInstance else { return }
+
+        if !isRunningTestsOrPreviews {
+            notchPanelController = NotchPanelController(model: .shared) { [weak self] in
+                self?.showMainWindow()
+            }
+        }
+
         guard
-            !isDuplicateInstance,
             let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
             let icon = NSImage(contentsOf: iconURL)
         else {

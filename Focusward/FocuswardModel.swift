@@ -32,6 +32,7 @@ final class FocuswardModel: ObservableObject {
     @Published private(set) var dailyDraftAllowanceMinutes = 30
     @Published private(set) var dailyLimitsMessage = "Inactive"
     @Published private(set) var dailyRedirectedTabCount = 0
+    @Published private(set) var showsNotchBreakTimer: Bool
 
     private let store: SessionStore
     private let safari: SafariAutomation
@@ -46,6 +47,7 @@ final class FocuswardModel: ObservableObject {
         self.store = store
         self.safari = safari
         self.domains = store.domains
+        self.showsNotchBreakTimer = store.showsNotchBreakTimer
 
         let now = Date()
         var restoredDailyLimits = store.dailyLimits ?? DailyLimits(now: now)
@@ -259,6 +261,11 @@ final class FocuswardModel: ObservableObject {
     func endDailyBreak(for domain: String) {
         guard dailyLimits.endBreak(for: domain, at: Date()) else { return }
         persistDailyLimits()
+    }
+
+    func setShowsNotchBreakTimer(_ shows: Bool) {
+        showsNotchBreakTimer = shows
+        store.showsNotchBreakTimer = shows
     }
 
     func persistStateForTermination() {
