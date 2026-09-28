@@ -7,11 +7,16 @@ final class NotchPanelController: ObservableObject {
     @Published private(set) var isExpanded = false
     @Published private(set) var notchSize: CGSize = .zero
     @Published private(set) var expandedSize: CGSize = .zero
+    // The shape is black only while it is larger than the notch or on its way back into the notch.
+    @Published private(set) var isShapeFilled = false
 
     let showMainWindow: () -> Void
     private let model: FocuswardModel
     private var panel: NSPanel?
-    private var isPointerInside = false
+    private var hostingView: NotchHostingView?
+    private var isOpen = false
+    private var isCollapsing = false
+    private var openTask: Task<Void, Never>?
     private var breakCount = 0
     private var isEnabled = false
     private var cancellables: Set<AnyCancellable> = []
@@ -49,21 +54,50 @@ final class NotchPanelController: ObservableObject {
     }
 
     fileprivate func setPointerInside(_ isInside: Bool) {
-        guard isInside != isPointerInside else { return }
-        isPointerInside = isInside
+        openTask?.cancel()
+        openTask = nil
 
-        if isInside {
-            // The window grows first. The shape then grows from the notch inside the window.
-            updatePanel()
-            panel?.contentView?.layoutSubtreeIfNeeded()
-            withAnimation(animation) { isExpanded = true }
-        } else {
-            // The window shrinks to the notch after the shape is back in the notch.
-            withAnimation(animation) {
-                isExpanded = false
-            } completion: { [weak self] in
-                self?.updatePanel()
-            }
+        guard isInside else {
+            close()
+            return
+        }
+        if isCollapsing {
+            open()
+            return
+        }
+        // A short delay stops the panel from opening when the pointer only crosses the notch.
+        openTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            self?.open()
+        }
+    }
+
+    private func open() {
+        guard !isOpen else { return }
+        isOpen = true
+        isCollapsing = false
+        isShapeFilled = true
+
+        // The window grows first. The shape then grows from the notch inside the window.
+        updatePanel()
+        hostingView?.layoutSubtreeIfNeeded()
+        withAnimation(animation) { isExpanded = true }
+    }
+
+    private func close() {
+        guard isOpen else { return }
+        isOpen = false
+        isCollapsing = true
+
+        // The window shrinks to the notch after the shape is back in the notch.
+        withAnimation(animation) {
+            isExpanded = false
+        } completion: { [weak self] in
+            guard let self, !self.isOpen else { return }
+            self.isCollapsing = false
+            self.isShapeFilled = false
+            self.updatePanel()
         }
     }
 
@@ -73,24 +107,44 @@ final class NotchPanelController: ObservableObject {
             breakCount > 0,
             let notch = NSScreen.screens.lazy.compactMap(\.notchFrame).first
         else {
-            isPointerInside = false
-            isExpanded = false
-            panel?.orderOut(nil)
+            hidePanel()
             return
         }
 
         notchSize = notch.size
-        expandedSize = NotchLayout.panelFrame(notch: notch, isExpanded: true, breakCount: breakCount).size
         let panel = panel ?? makePanel()
-        panel.setFrame(
-            NotchLayout.panelFrame(
-                notch: notch,
-                isExpanded: isPointerInside || isExpanded,
-                breakCount: breakCount
-            ),
-            display: true
-        )
+        let frame = NotchLayout.panelFrame(notch: notch, isExpanded: isOpen || isCollapsing, breakCount: breakCount)
+        let newExpandedSize = NotchLayout.panelFrame(notch: notch, isExpanded: true, breakCount: breakCount).size
+
+        // A break starts or ends while the panel is open. A larger shape needs the larger window
+        // before it grows. A smaller shape shrinks before the window does.
+        if isExpanded, expandedSize != .zero, newExpandedSize != expandedSize {
+            if newExpandedSize.height > expandedSize.height {
+                panel.setFrame(frame, display: true)
+            }
+            withAnimation(animation) {
+                expandedSize = newExpandedSize
+            } completion: { [weak self] in
+                self?.updatePanel()
+            }
+            return
+        }
+
+        expandedSize = newExpandedSize
+        panel.setFrame(frame, display: true)
         panel.orderFrontRegardless()
+    }
+
+    private func hidePanel() {
+        openTask?.cancel()
+        openTask = nil
+        isOpen = false
+        isCollapsing = false
+        isExpanded = false
+        isShapeFilled = false
+        panel?.orderOut(nil)
+        // A hidden panel receives no exit event. A new tracking area starts with the pointer outside.
+        hostingView?.resetPointerTracking()
     }
 
     private func makePanel() -> NSPanel {
@@ -109,13 +163,14 @@ final class NotchPanelController: ObservableObject {
         panel.hidesOnDeactivate = false
 
         let hostingView = NotchHostingView(
-            rootView: NotchView(controller: self).environmentObject(model)
+            rootView: AnyView(NotchView(controller: self).environmentObject(model))
         )
         hostingView.onPointerInsideChange = { [weak self] isInside in
             self?.setPointerInside(isInside)
         }
         panel.contentView = hostingView
         self.panel = panel
+        self.hostingView = hostingView
         return panel
     }
 }
@@ -131,7 +186,7 @@ private extension NSScreen {
     }
 }
 
-private final class NotchHostingView<Content: View>: NSHostingView<Content> {
+private final class NotchHostingView: NSHostingView<AnyView> {
     var onPointerInsideChange: ((Bool) -> Void)?
     private var pointerTrackingArea: NSTrackingArea?
 
@@ -153,6 +208,14 @@ private final class NotchHostingView<Content: View>: NSHostingView<Content> {
         )
         addTrackingArea(area)
         pointerTrackingArea = area
+    }
+
+    func resetPointerTracking() {
+        if let pointerTrackingArea {
+            removeTrackingArea(pointerTrackingArea)
+            self.pointerTrackingArea = nil
+        }
+        updateTrackingAreas()
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -189,7 +252,9 @@ private struct NotchView: View {
             }
         }
         .frame(width: size.width, height: size.height, alignment: .top)
-        .background(.black)
+        // The collapsed shape stays transparent. Screenshots, screen sharing, and mirrored displays
+        // show the notch area, so a black shape there would be visible to other people.
+        .background(Color.black.opacity(controller.isShapeFilled ? 1 : 0))
         .clipShape(shape)
         .overlay {
             shape
