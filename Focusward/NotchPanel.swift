@@ -5,14 +5,15 @@ import SwiftUI
 @MainActor
 final class NotchPanelController: ObservableObject {
     @Published private(set) var isExpanded = false
-    @Published private(set) var notchHeight: CGFloat = 0
+    @Published private(set) var notchSize: CGSize = .zero
+    @Published private(set) var expandedSize: CGSize = .zero
 
     let showMainWindow: () -> Void
     private let model: FocuswardModel
     private var panel: NSPanel?
+    private var isPointerInside = false
     private var breakCount = 0
     private var isEnabled = false
-    private var outsideClickMonitor: Any?
     private var cancellables: Set<AnyCancellable> = []
 
     init(model: FocuswardModel, showMainWindow: @escaping () -> Void) {
@@ -41,29 +42,29 @@ final class NotchPanelController: ObservableObject {
             .store(in: &cancellables)
     }
 
-    func toggleExpanded() {
-        setExpanded(!isExpanded)
+    private var animation: Animation {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            ? .easeInOut(duration: 0.2)
+            : .spring(duration: 0.4, bounce: 0.25)
     }
 
-    func openMainWindow() {
-        setExpanded(false)
-        showMainWindow()
-    }
+    fileprivate func setPointerInside(_ isInside: Bool) {
+        guard isInside != isPointerInside else { return }
+        isPointerInside = isInside
 
-    private func setExpanded(_ expanded: Bool) {
-        isExpanded = expanded
-        if expanded, outsideClickMonitor == nil {
-            // A global monitor receives only clicks in other apps, so a click in the panel keeps it open.
-            outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
-                matching: [.leftMouseDown, .rightMouseDown]
-            ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.setExpanded(false) }
+        if isInside {
+            // The window grows first. The shape then grows from the notch inside the window.
+            updatePanel()
+            panel?.contentView?.layoutSubtreeIfNeeded()
+            withAnimation(animation) { isExpanded = true }
+        } else {
+            // The window shrinks to the notch after the shape is back in the notch.
+            withAnimation(animation) {
+                isExpanded = false
+            } completion: { [weak self] in
+                self?.updatePanel()
             }
-        } else if !expanded, let outsideClickMonitor {
-            NSEvent.removeMonitor(outsideClickMonitor)
-            self.outsideClickMonitor = nil
         }
-        updatePanel()
     }
 
     private func updatePanel() {
@@ -72,18 +73,23 @@ final class NotchPanelController: ObservableObject {
             breakCount > 0,
             let notch = NSScreen.screens.lazy.compactMap(\.notchFrame).first
         else {
-            if isExpanded {
-                setExpanded(false)
-            }
+            isPointerInside = false
+            isExpanded = false
             panel?.orderOut(nil)
             return
         }
 
-        notchHeight = notch.height
-        let panel = panel ?? makePanel()
         // One row for each break and one row for Open Focusward.
+        let rowCount = breakCount + 1
+        notchSize = notch.size
+        expandedSize = NotchLayout.panelFrame(notch: notch, isExpanded: true, rowCount: rowCount).size
+        let panel = panel ?? makePanel()
         panel.setFrame(
-            NotchLayout.panelFrame(notch: notch, isExpanded: isExpanded, rowCount: breakCount + 1),
+            NotchLayout.panelFrame(
+                notch: notch,
+                isExpanded: isPointerInside || isExpanded,
+                rowCount: rowCount
+            ),
             display: true
         )
         panel.orderFrontRegardless()
@@ -103,9 +109,14 @@ final class NotchPanelController: ObservableObject {
         panel.isOpaque = false
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
-        panel.contentView = NotchHostingView(
+
+        let hostingView = NotchHostingView(
             rootView: NotchView(controller: self).environmentObject(model)
         )
+        hostingView.onPointerInsideChange = { [weak self] isInside in
+            self?.setPointerInside(isInside)
+        }
+        panel.contentView = hostingView
         self.panel = panel
         return panel
     }
@@ -122,10 +133,38 @@ private extension NSScreen {
     }
 }
 
-// The panel never becomes active, so the first click must operate a control.
 private final class NotchHostingView<Content: View>: NSHostingView<Content> {
+    var onPointerInsideChange: ((Bool) -> Void)?
+    private var pointerTrackingArea: NSTrackingArea?
+
+    // The panel never becomes active, so the first click must operate a control.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
+    }
+
+    // Focusward is usually in the background, so the tracking area must always be active.
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        guard pointerTrackingArea == nil else { return }
+
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        pointerTrackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        onPointerInsideChange?(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        onPointerInsideChange?(false)
     }
 }
 
@@ -134,70 +173,65 @@ private struct NotchView: View {
     @ObservedObject var controller: NotchPanelController
 
     var body: some View {
-        VStack(spacing: 0) {
-            Button(action: controller.toggleExpanded) {
-                HStack(spacing: 0) {
-                    Image(systemName: "cup.and.saucer.fill")
-                        .frame(width: NotchLayout.earWidth)
-                    Spacer(minLength: 0)
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(countdownText(seconds: secondsLeft(for: model.dailyLimits.nextBreakToEnd, at: context.date)))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                            .frame(width: NotchLayout.earWidth)
-                    }
-                }
-                .frame(height: controller.notchHeight)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(controller.isExpanded ? "Hide break options" : "Show break options")
+        let shapeSize = controller.isExpanded ? controller.expandedSize : controller.notchSize
+        let cornerRadius: CGFloat = controller.isExpanded ? 20 : 8
+
+        ZStack(alignment: .top) {
+            Color.black
 
             if controller.isExpanded {
-                VStack(spacing: 0) {
-                    ForEach(model.dailyLimits.sitesOnBreak) { site in
-                        HStack {
-                            Text(site.domain)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer()
-                            TimelineView(.periodic(from: .now, by: 1)) { context in
-                                Text(countdownText(seconds: secondsLeft(for: site, at: context.date)))
-                                    .monospacedDigit()
-                            }
-                            Button("End Break") {
-                                model.endDailyBreak(for: site.domain)
-                            }
-                            .accessibilityLabel("End Break for \(site.domain)")
-                        }
-                        .frame(height: NotchLayout.rowHeight)
-                    }
-
-                    HStack {
-                        Spacer()
-                        Button("Open Focusward", action: controller.openMainWindow)
-                    }
-                    .frame(height: NotchLayout.rowHeight)
-                }
-                .controlSize(.small)
-                .padding(NotchLayout.padding)
+                breakList
+                    .padding(.horizontal, NotchLayout.padding)
+                    .padding(.top, controller.notchSize.height)
+                    .padding(.bottom, NotchLayout.padding)
+                    .frame(width: controller.expandedSize.width)
+                    .transition(.opacity)
             }
         }
+        .frame(width: shapeSize.width, height: shapeSize.height, alignment: .top)
+        .clipShape(
+            UnevenRoundedRectangle(
+                bottomLeadingRadius: cornerRadius,
+                bottomTrailingRadius: cornerRadius
+            )
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .font(.system(size: 13, weight: .medium))
         .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(
-            UnevenRoundedRectangle(
-                bottomLeadingRadius: controller.isExpanded ? 18 : 10,
-                bottomTrailingRadius: controller.isExpanded ? 18 : 10
-            )
-            .fill(.black)
-        )
         .environment(\.colorScheme, .dark)
     }
 
-    private func secondsLeft(for site: DailyLimitSite?, at date: Date) -> Int {
-        max(0, Int(ceil((site?.activeBreak?.end ?? date).timeIntervalSince(date))))
+    private var breakList: some View {
+        VStack(spacing: 0) {
+            ForEach(model.dailyLimits.sitesOnBreak) { site in
+                HStack {
+                    Image(systemName: "cup.and.saucer.fill")
+                    Text(site.domain)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text(countdownText(seconds: secondsLeft(for: site, at: context.date)))
+                            .monospacedDigit()
+                    }
+                    Button("End Break") {
+                        model.endDailyBreak(for: site.domain)
+                    }
+                    .accessibilityLabel("End Break for \(site.domain)")
+                }
+                .frame(height: NotchLayout.rowHeight)
+            }
+
+            HStack {
+                Spacer()
+                Button("Open Focusward", action: controller.showMainWindow)
+            }
+            .frame(height: NotchLayout.rowHeight)
+        }
+        .controlSize(.small)
+    }
+
+    private func secondsLeft(for site: DailyLimitSite, at date: Date) -> Int {
+        max(0, Int(ceil((site.activeBreak?.end ?? date).timeIntervalSince(date))))
     }
 }

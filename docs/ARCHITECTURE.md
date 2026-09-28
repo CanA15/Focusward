@@ -37,7 +37,7 @@ When both features apply to the same website, a timed session has priority. The 
 
 ## Notch break timer
 
-While a Daily Limits break runs, Focusward shows the time left around the notch of the built-in display. The collapsed display shows the break that ends first. A click on the notch expands the display. The expanded display lists each break with an End Break button, and it has an Open Focusward button. A click outside the display collapses it.
+While a Daily Limits break runs, Focusward puts a panel on the notch of the built-in display. The collapsed panel covers only the notch, so it is not visible and it does not cover other content. When the pointer moves onto the notch, the panel expands below the notch. The expanded panel lists each break with its time left and an End Break button, and it has an Open Focusward button. The panel stays expanded while the pointer is in it, and it collapses when the pointer leaves it. The panel has no keyboard equivalent. The menu bar menu can also end a break.
 
 Focusward calculates the notch size from the screen values that macOS reports, so the display fits each MacBook model and each display scale setting. A display without a notch does not show the timer. The user can turn off the timer in Settings. The timer is on by default.
 

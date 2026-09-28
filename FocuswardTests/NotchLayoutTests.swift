@@ -26,14 +26,9 @@ final class NotchLayoutTests: XCTestCase {
         )
     }
 
-    func testCollapsedPanelWrapsTheNotch() {
+    func testCollapsedPanelCoversOnlyTheNotch() {
         for notch in notches {
-            let frame = NotchLayout.panelFrame(notch: notch, isExpanded: false, rowCount: 2)
-
-            XCTAssertEqual(frame.midX, notch.midX)
-            XCTAssertEqual(frame.maxY, notch.maxY)
-            XCTAssertEqual(frame.height, notch.height)
-            XCTAssertGreaterThan(frame.width, notch.width)
+            XCTAssertEqual(NotchLayout.panelFrame(notch: notch, isExpanded: false, rowCount: 2), notch)
         }
     }
 

@@ -1,7 +1,6 @@
 import CoreGraphics
 
 enum NotchLayout {
-    static let earWidth: CGFloat = 64
     static let expandedMinimumWidth: CGFloat = 340
     static let rowHeight: CGFloat = 32
     static let padding: CGFloat = 12
@@ -25,20 +24,17 @@ enum NotchLayout {
         )
     }
 
+    // The collapsed panel covers only the notch, where the display has no pixels.
     static func panelFrame(notch: CGRect, isExpanded: Bool, rowCount: Int) -> CGRect {
-        let collapsedWidth = notch.width + 2 * earWidth
-        let size = isExpanded
-            ? CGSize(
-                width: max(collapsedWidth, expandedMinimumWidth),
-                height: notch.height + CGFloat(rowCount) * rowHeight + 2 * padding
-            )
-            : CGSize(width: collapsedWidth, height: notch.height)
+        guard isExpanded else { return notch }
 
+        let width = max(notch.width, expandedMinimumWidth)
+        let height = notch.height + CGFloat(rowCount) * rowHeight + padding
         return CGRect(
-            x: notch.midX - size.width / 2,
-            y: notch.maxY - size.height,
-            width: size.width,
-            height: size.height
+            x: notch.midX - width / 2,
+            y: notch.maxY - height,
+            width: width,
+            height: height
         )
     }
 }

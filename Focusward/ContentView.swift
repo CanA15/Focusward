@@ -997,7 +997,7 @@ struct SettingsView: View {
                     )
                 )
             } footer: {
-                Text("While a Daily Limits break runs, the notch shows the time left. Click the notch to end a break or to open Focusward. A display without a notch does not show the timer.")
+                Text("While a Daily Limits break runs, move the pointer to the notch to see the time left, to end a break, or to open Focusward. A display without a notch does not show the timer.")
                     .foregroundStyle(.secondary)
             }
         }

@@ -41,7 +41,7 @@ final class DailyLimitsTests: XCTestCase {
         XCTAssertEqual(site.breakCount, 1)
     }
 
-    func testFindsTheBreakThatEndsFirst() throws {
+    func testListsOnlyTheSitesOnBreak() throws {
         let start = try date(2026, 8, 27, 10, 0)
         var limits = try limits(
             sites: ["example.com": 30, "reddit.com": 30, "youtube.com": 30],
@@ -49,7 +49,6 @@ final class DailyLimitsTests: XCTestCase {
         )
 
         XCTAssertTrue(limits.sitesOnBreak.isEmpty)
-        XCTAssertNil(limits.nextBreakToEnd)
 
         XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 15, at: start, calendar: calendar))
         XCTAssertTrue(
@@ -62,7 +61,6 @@ final class DailyLimitsTests: XCTestCase {
         )
 
         XCTAssertEqual(limits.sitesOnBreak.map(\.domain), ["reddit.com", "youtube.com"])
-        XCTAssertEqual(limits.nextBreakToEnd?.domain, "reddit.com")
     }
 
     func testRejectsABreakThatCannotStart() throws {
