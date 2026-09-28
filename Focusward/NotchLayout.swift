@@ -1,9 +1,12 @@
 import CoreGraphics
 
 enum NotchLayout {
-    static let expandedMinimumWidth: CGFloat = 340
-    static let rowHeight: CGFloat = 32
-    static let padding: CGFloat = 12
+    static let expandedMinimumWidth: CGFloat = 380
+    static let rowHeight: CGFloat = 52
+    static let footerHeight: CGFloat = 36
+    // The expanded shape curves out into the top edge of the screen, as the notch does.
+    static let shoulderRadius: CGFloat = 10
+    static let padding: CGFloat = 16
 
     // macOS reports the menu bar areas on each side of the notch. The notch is the gap between them.
     static func notchFrame(
@@ -25,11 +28,11 @@ enum NotchLayout {
     }
 
     // The collapsed panel covers only the notch, where the display has no pixels.
-    static func panelFrame(notch: CGRect, isExpanded: Bool, rowCount: Int) -> CGRect {
+    static func panelFrame(notch: CGRect, isExpanded: Bool, breakCount: Int) -> CGRect {
         guard isExpanded else { return notch }
 
-        let width = max(notch.width, expandedMinimumWidth)
-        let height = notch.height + CGFloat(rowCount) * rowHeight + padding
+        let width = max(notch.width + 2 * shoulderRadius, expandedMinimumWidth)
+        let height = notch.height + CGFloat(breakCount) * rowHeight + footerHeight + padding / 2
         return CGRect(
             x: notch.midX - width / 2,
             y: notch.maxY - height,

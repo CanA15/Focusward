@@ -28,20 +28,20 @@ final class NotchLayoutTests: XCTestCase {
 
     func testCollapsedPanelCoversOnlyTheNotch() {
         for notch in notches {
-            XCTAssertEqual(NotchLayout.panelFrame(notch: notch, isExpanded: false, rowCount: 2), notch)
+            XCTAssertEqual(NotchLayout.panelFrame(notch: notch, isExpanded: false, breakCount: 2), notch)
         }
     }
 
     func testExpandedPanelGrowsDownFromTheNotch() {
         for notch in notches {
-            let collapsed = NotchLayout.panelFrame(notch: notch, isExpanded: false, rowCount: 2)
-            let twoRows = NotchLayout.panelFrame(notch: notch, isExpanded: true, rowCount: 2)
-            let threeRows = NotchLayout.panelFrame(notch: notch, isExpanded: true, rowCount: 3)
+            let collapsed = NotchLayout.panelFrame(notch: notch, isExpanded: false, breakCount: 1)
+            let oneBreak = NotchLayout.panelFrame(notch: notch, isExpanded: true, breakCount: 1)
+            let twoBreaks = NotchLayout.panelFrame(notch: notch, isExpanded: true, breakCount: 2)
 
-            XCTAssertEqual(twoRows.midX, notch.midX)
-            XCTAssertEqual(twoRows.maxY, notch.maxY)
-            XCTAssertTrue(twoRows.contains(collapsed))
-            XCTAssertEqual(threeRows.height - twoRows.height, NotchLayout.rowHeight)
+            XCTAssertEqual(oneBreak.midX, notch.midX)
+            XCTAssertEqual(oneBreak.maxY, notch.maxY)
+            XCTAssertTrue(oneBreak.contains(collapsed))
+            XCTAssertEqual(twoBreaks.height - oneBreak.height, NotchLayout.rowHeight)
         }
     }
 

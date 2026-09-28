@@ -3,6 +3,12 @@ import Foundation
 struct DailyBreak: Codable, Equatable {
     let start: Date
     let end: Date
+
+    func fractionLeft(at date: Date) -> Double {
+        let length = end.timeIntervalSince(start)
+        guard length > 0 else { return 0 }
+        return min(max(end.timeIntervalSince(date) / length, 0), 1)
+    }
 }
 
 struct DailyLimitSite: Codable, Equatable, Identifiable {

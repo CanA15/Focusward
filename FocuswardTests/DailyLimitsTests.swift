@@ -63,6 +63,17 @@ final class DailyLimitsTests: XCTestCase {
         XCTAssertEqual(limits.sitesOnBreak.map(\.domain), ["reddit.com", "youtube.com"])
     }
 
+    func testReportsTheFractionOfABreakThatIsLeft() throws {
+        let start = try date(2026, 8, 27, 10, 0)
+        let dailyBreak = DailyBreak(start: start, end: start.addingTimeInterval(10 * 60))
+
+        XCTAssertEqual(dailyBreak.fractionLeft(at: start.addingTimeInterval(-60)), 1)
+        XCTAssertEqual(dailyBreak.fractionLeft(at: start), 1)
+        XCTAssertEqual(dailyBreak.fractionLeft(at: start.addingTimeInterval(4 * 60)), 0.6, accuracy: 0.0001)
+        XCTAssertEqual(dailyBreak.fractionLeft(at: start.addingTimeInterval(10 * 60)), 0)
+        XCTAssertEqual(dailyBreak.fractionLeft(at: start.addingTimeInterval(11 * 60)), 0)
+    }
+
     func testRejectsABreakThatCannotStart() throws {
         let start = try date(2026, 8, 27, 10, 0)
         var limits = try limits(sites: ["youtube.com": 10], at: start, active: false)

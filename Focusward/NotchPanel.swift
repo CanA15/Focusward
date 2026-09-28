@@ -79,16 +79,14 @@ final class NotchPanelController: ObservableObject {
             return
         }
 
-        // One row for each break and one row for Open Focusward.
-        let rowCount = breakCount + 1
         notchSize = notch.size
-        expandedSize = NotchLayout.panelFrame(notch: notch, isExpanded: true, rowCount: rowCount).size
+        expandedSize = NotchLayout.panelFrame(notch: notch, isExpanded: true, breakCount: breakCount).size
         let panel = panel ?? makePanel()
         panel.setFrame(
             NotchLayout.panelFrame(
                 notch: notch,
                 isExpanded: isPointerInside || isExpanded,
-                rowCount: rowCount
+                breakCount: breakCount
             ),
             display: true
         )
@@ -173,65 +171,215 @@ private struct NotchView: View {
     @ObservedObject var controller: NotchPanelController
 
     var body: some View {
-        let shapeSize = controller.isExpanded ? controller.expandedSize : controller.notchSize
-        let cornerRadius: CGFloat = controller.isExpanded ? 20 : 8
+        let isExpanded = controller.isExpanded
+        let size = isExpanded ? controller.expandedSize : controller.notchSize
+        let shape = NotchShape(
+            shoulderRadius: isExpanded ? NotchLayout.shoulderRadius : 0,
+            cornerRadius: isExpanded ? 24 : 8
+        )
 
         ZStack(alignment: .top) {
-            Color.black
+            background(height: size.height)
+                .opacity(isExpanded ? 1 : 0)
 
-            if controller.isExpanded {
-                breakList
-                    .padding(.horizontal, NotchLayout.padding)
-                    .padding(.top, controller.notchSize.height)
-                    .padding(.bottom, NotchLayout.padding)
+            if isExpanded {
+                content
                     .frame(width: controller.expandedSize.width)
-                    .transition(.opacity)
+                    .transition(.blurReplace)
             }
         }
-        .frame(width: shapeSize.width, height: shapeSize.height, alignment: .top)
-        .clipShape(
-            UnevenRoundedRectangle(
-                bottomLeadingRadius: cornerRadius,
-                bottomTrailingRadius: cornerRadius
-            )
-        )
+        .frame(width: size.width, height: size.height, alignment: .top)
+        .background(.black)
+        .clipShape(shape)
+        .overlay {
+            shape
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0), .white.opacity(0.14)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+                .opacity(isExpanded ? 1 : 0)
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .font(.system(size: 13, weight: .medium))
-        .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
     }
 
-    private var breakList: some View {
+    // The band beside the camera stays pure black, so the shape joins the notch without a seam.
+    private func background(height: CGFloat) -> some View {
+        let bandEnd = min(controller.notchSize.height / max(height, 1), 1)
+
+        return LinearGradient(
+            stops: [
+                .init(color: .black, location: 0),
+                .init(color: .black, location: bandEnd),
+                .init(color: Color(red: 0.08, green: 0.08, blue: 0.095), location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .overlay(alignment: .bottom) {
+            RadialGradient(
+                colors: [Color.accentColor.opacity(0.28), .clear],
+                center: .bottom,
+                startRadius: 0,
+                endRadius: 240
+            )
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: 0) {
             ForEach(model.dailyLimits.sitesOnBreak) { site in
-                HStack {
-                    Image(systemName: "cup.and.saucer.fill")
-                    Text(site.domain)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(countdownText(seconds: secondsLeft(for: site, at: context.date)))
-                            .monospacedDigit()
-                    }
-                    Button("End Break") {
-                        model.endDailyBreak(for: site.domain)
-                    }
-                    .accessibilityLabel("End Break for \(site.domain)")
+                NotchBreakRow(site: site) {
+                    model.endDailyBreak(for: site.domain)
                 }
                 .frame(height: NotchLayout.rowHeight)
             }
 
             HStack {
+                Text("Daily Limits")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.45))
                 Spacer()
-                Button("Open Focusward", action: controller.showMainWindow)
+                Button(action: controller.showMainWindow) {
+                    Label("Open Focusward", systemImage: "arrow.up.forward.app")
+                }
+                .buttonStyle(NotchLinkButtonStyle())
             }
-            .frame(height: NotchLayout.rowHeight)
+            .frame(height: NotchLayout.footerHeight)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(.white.opacity(0.08))
+                    .frame(height: 1)
+            }
         }
-        .controlSize(.small)
+        .padding(.top, controller.notchSize.height)
+        .padding(.horizontal, NotchLayout.shoulderRadius + NotchLayout.padding)
+        .padding(.bottom, NotchLayout.padding / 2)
+        .foregroundStyle(.white)
+    }
+}
+
+private struct NotchBreakRow: View {
+    let site: DailyLimitSite
+    let onEndBreak: () -> Void
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let secondsLeft = max(0, Int(ceil((site.activeBreak?.end ?? context.date).timeIntervalSince(context.date))))
+            let fractionLeft = site.activeBreak?.fractionLeft(at: context.date) ?? 0
+            // The last minute of a break uses a warning color.
+            let tint = secondsLeft <= 60 ? Color.orange : Color.accentColor
+
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .stroke(.white.opacity(0.12), lineWidth: 3)
+                    Circle()
+                        .trim(from: 0, to: fractionLeft)
+                        .stroke(tint, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .animation(.linear(duration: 1), value: fractionLeft)
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(tint)
+                }
+                .frame(width: 32, height: 32)
+                .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(site.domain)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text("On a break")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+
+                Spacer(minLength: 8)
+
+                Text(countdownText(seconds: secondsLeft))
+                    .font(.system(size: 20, weight: .semibold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(secondsLeft <= 60 ? Color.orange : Color.white)
+                    .contentTransition(.numericText(countsDown: true))
+                    .animation(.snappy, value: secondsLeft)
+
+                Button("End Break", action: onEndBreak)
+                    .buttonStyle(NotchCapsuleButtonStyle())
+                    .accessibilityLabel("End Break for \(site.domain)")
+            }
+        }
+    }
+}
+
+private struct NotchShape: Shape {
+    var shoulderRadius: CGFloat
+    var cornerRadius: CGFloat
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(shoulderRadius, cornerRadius) }
+        set {
+            shoulderRadius = newValue.first
+            cornerRadius = newValue.second
+        }
     }
 
-    private func secondsLeft(for site: DailyLimitSite, at date: Date) -> Int {
-        max(0, Int(ceil((site.activeBreak?.end ?? date).timeIntervalSince(date))))
+    func path(in rect: CGRect) -> Path {
+        let shoulder = max(0, min(shoulderRadius, rect.width / 4, rect.height / 2))
+        let corner = max(0, min(cornerRadius, (rect.width - 2 * shoulder) / 2, rect.height - shoulder))
+        let left = rect.minX + shoulder
+        let right = rect.maxX - shoulder
+
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addArc(
+            tangent1End: CGPoint(x: left, y: rect.minY),
+            tangent2End: CGPoint(x: left, y: rect.maxY),
+            radius: shoulder
+        )
+        path.addArc(
+            tangent1End: CGPoint(x: left, y: rect.maxY),
+            tangent2End: CGPoint(x: right, y: rect.maxY),
+            radius: corner
+        )
+        path.addArc(
+            tangent1End: CGPoint(x: right, y: rect.maxY),
+            tangent2End: CGPoint(x: right, y: rect.minY),
+            radius: corner
+        )
+        path.addArc(
+            tangent1End: CGPoint(x: right, y: rect.minY),
+            tangent2End: CGPoint(x: rect.maxX, y: rect.minY),
+            radius: shoulder
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct NotchCapsuleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.white.opacity(configuration.isPressed ? 0.28 : 0.14), in: Capsule())
+            .contentShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+private struct NotchLinkButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white.opacity(configuration.isPressed ? 0.95 : 0.65))
+            .contentShape(Rectangle())
     }
 }
