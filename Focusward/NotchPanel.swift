@@ -7,15 +7,14 @@ final class NotchPanelController: ObservableObject {
     @Published private(set) var isExpanded = false
     @Published private(set) var notchSize: CGSize = .zero
     @Published private(set) var expandedSize: CGSize = .zero
-    // The shape is black only while it is larger than the notch or on its way back into the notch.
+    // While the shape is outside the notch or on its way back into it, the shape is black and the
+    // window has the expanded size. At other times the panel is transparent and covers only the notch.
     @Published private(set) var isShapeFilled = false
 
     let showMainWindow: () -> Void
     private let model: FocuswardModel
     private var panel: NSPanel?
     private var hostingView: NotchHostingView?
-    private var isOpen = false
-    private var isCollapsing = false
     private var openTask: Task<Void, Never>?
     private var breakCount = 0
     private var isEnabled = false
@@ -25,7 +24,7 @@ final class NotchPanelController: ObservableObject {
         self.model = model
         self.showMainWindow = showMainWindow
 
-        // A published value arrives before the model stores it, so pass the values on.
+        // @Published emits before the model stores the new value, so pass the values on.
         model.$dailyLimits
             .map(\.sitesOnBreak.count)
             .removeDuplicates()
@@ -53,7 +52,7 @@ final class NotchPanelController: ObservableObject {
             : .spring(duration: 0.4, bounce: 0.25)
     }
 
-    fileprivate func setPointerInside(_ isInside: Bool) {
+    private func setPointerInside(_ isInside: Bool) {
         openTask?.cancel()
         openTask = nil
 
@@ -61,7 +60,8 @@ final class NotchPanelController: ObservableObject {
             close()
             return
         }
-        if isCollapsing {
+        // The pointer is back while the shape collapses, so the shape grows again at once.
+        if isShapeFilled {
             open()
             return
         }
@@ -74,9 +74,7 @@ final class NotchPanelController: ObservableObject {
     }
 
     private func open() {
-        guard !isOpen else { return }
-        isOpen = true
-        isCollapsing = false
+        guard !isExpanded else { return }
         isShapeFilled = true
 
         // The window grows first. The shape then grows from the notch inside the window.
@@ -86,16 +84,13 @@ final class NotchPanelController: ObservableObject {
     }
 
     private func close() {
-        guard isOpen else { return }
-        isOpen = false
-        isCollapsing = true
+        guard isExpanded else { return }
 
         // The window shrinks to the notch after the shape is back in the notch.
         withAnimation(animation) {
             isExpanded = false
         } completion: { [weak self] in
-            guard let self, !self.isOpen else { return }
-            self.isCollapsing = false
+            guard let self, !self.isExpanded else { return }
             self.isShapeFilled = false
             self.updatePanel()
         }
@@ -113,12 +108,13 @@ final class NotchPanelController: ObservableObject {
 
         notchSize = notch.size
         let panel = panel ?? makePanel()
-        let frame = NotchLayout.panelFrame(notch: notch, isExpanded: isOpen || isCollapsing, breakCount: breakCount)
-        let newExpandedSize = NotchLayout.panelFrame(notch: notch, isExpanded: true, breakCount: breakCount).size
+        let expandedFrame = NotchLayout.expandedFrame(notch: notch, breakCount: breakCount)
+        let frame = isShapeFilled ? expandedFrame : notch
+        let newExpandedSize = expandedFrame.size
 
         // A break starts or ends while the panel is open. A larger shape needs the larger window
         // before it grows. A smaller shape shrinks before the window does.
-        if isExpanded, expandedSize != .zero, newExpandedSize != expandedSize {
+        if isExpanded, newExpandedSize != expandedSize {
             if newExpandedSize.height > expandedSize.height {
                 panel.setFrame(frame, display: true)
             }
@@ -138,8 +134,6 @@ final class NotchPanelController: ObservableObject {
     private func hidePanel() {
         openTask?.cancel()
         openTask = nil
-        isOpen = false
-        isCollapsing = false
         isExpanded = false
         isShapeFilled = false
         panel?.orderOut(nil)
@@ -163,7 +157,7 @@ final class NotchPanelController: ObservableObject {
         panel.hidesOnDeactivate = false
 
         let hostingView = NotchHostingView(
-            rootView: AnyView(NotchView(controller: self).environmentObject(model))
+            rootView: NotchView(controller: self, model: model)
         )
         hostingView.onPointerInsideChange = { [weak self] isInside in
             self?.setPointerInside(isInside)
@@ -186,7 +180,7 @@ private extension NSScreen {
     }
 }
 
-private final class NotchHostingView: NSHostingView<AnyView> {
+private final class NotchHostingView: NSHostingView<NotchView> {
     var onPointerInsideChange: ((Bool) -> Void)?
     private var pointerTrackingArea: NSTrackingArea?
 
@@ -230,8 +224,9 @@ private final class NotchHostingView: NSHostingView<AnyView> {
 }
 
 private struct NotchView: View {
-    @EnvironmentObject private var model: FocuswardModel
     @ObservedObject var controller: NotchPanelController
+    // Only the break list observes the model, so model changes do not redraw a collapsed panel.
+    let model: FocuswardModel
 
     var body: some View {
         let isExpanded = controller.isExpanded
@@ -246,7 +241,8 @@ private struct NotchView: View {
                 .opacity(isExpanded ? 1 : 0)
 
             if isExpanded {
-                content
+                NotchBreakList(model: model, showMainWindow: controller.showMainWindow)
+                    .padding(.top, controller.notchSize.height)
                     .frame(width: controller.expandedSize.width)
                     .transition(.blurReplace)
             }
@@ -294,14 +290,21 @@ private struct NotchView: View {
             )
         }
     }
+}
 
-    private var content: some View {
+private struct NotchBreakList: View {
+    @ObservedObject var model: FocuswardModel
+    let showMainWindow: () -> Void
+
+    var body: some View {
         VStack(spacing: 0) {
             ForEach(model.dailyLimits.sitesOnBreak) { site in
-                NotchBreakRow(site: site) {
-                    model.endDailyBreak(for: site.domain)
+                if let activeBreak = site.activeBreak {
+                    NotchBreakRow(domain: site.domain, activeBreak: activeBreak) {
+                        model.endDailyBreak(for: site.domain)
+                    }
+                    .frame(height: NotchLayout.rowHeight)
                 }
-                .frame(height: NotchLayout.rowHeight)
             }
 
             HStack {
@@ -309,7 +312,7 @@ private struct NotchView: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white.opacity(0.45))
                 Spacer()
-                Button(action: controller.showMainWindow) {
+                Button(action: showMainWindow) {
                     Label("Open Focusward", systemImage: "arrow.up.forward.app")
                 }
                 .buttonStyle(NotchLinkButtonStyle())
@@ -321,22 +324,22 @@ private struct NotchView: View {
                     .frame(height: 1)
             }
         }
-        .padding(.top, controller.notchSize.height)
-        .padding(.horizontal, NotchLayout.shoulderRadius + NotchLayout.padding)
-        .padding(.bottom, NotchLayout.padding / 2)
+        .padding(.horizontal, NotchLayout.horizontalInset)
+        .padding(.bottom, NotchLayout.bottomInset)
         .foregroundStyle(.white)
     }
 }
 
 private struct NotchBreakRow: View {
-    let site: DailyLimitSite
+    let domain: String
+    let activeBreak: DailyBreak
     let onEndBreak: () -> Void
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            let secondsLeft = site.activeBreak?.secondsLeft(at: context.date) ?? 0
-            let fractionLeft = site.activeBreak?.fractionLeft(at: context.date) ?? 0
-            let isInLastMinute = site.activeBreak?.isInLastMinute(at: context.date) ?? false
+            let secondsLeft = activeBreak.secondsLeft(at: context.date)
+            let fractionLeft = activeBreak.fractionLeft(at: context.date)
+            let isInLastMinute = activeBreak.isInLastMinute(at: context.date)
             let tint = isInLastMinute ? Color.orange : Color.accentColor
 
             HStack(spacing: 12) {
@@ -356,7 +359,7 @@ private struct NotchBreakRow: View {
                 .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(site.domain)
+                    Text(domain)
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -375,7 +378,7 @@ private struct NotchBreakRow: View {
 
                 Button("End Break", action: onEndBreak)
                     .buttonStyle(NotchCapsuleButtonStyle())
-                    .accessibilityLabel("End Break for \(site.domain)")
+                    .accessibilityLabel("End Break for \(domain)")
             }
         }
     }
