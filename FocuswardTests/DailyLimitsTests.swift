@@ -74,6 +74,25 @@ final class DailyLimitsTests: XCTestCase {
         XCTAssertEqual(dailyBreak.fractionLeft(at: start.addingTimeInterval(11 * 60)), 0)
     }
 
+    func testReportsTheWholeSecondsLeftInABreak() throws {
+        let start = try date(2026, 8, 27, 10, 0)
+        let dailyBreak = DailyBreak(start: start, end: start.addingTimeInterval(10 * 60))
+
+        XCTAssertEqual(dailyBreak.secondsLeft(at: start), 600)
+        XCTAssertEqual(dailyBreak.secondsLeft(at: start.addingTimeInterval(0.4)), 600)
+        XCTAssertEqual(dailyBreak.secondsLeft(at: start.addingTimeInterval(599.5)), 1)
+        XCTAssertEqual(dailyBreak.secondsLeft(at: start.addingTimeInterval(700)), 0)
+    }
+
+    func testMarksTheLastMinuteOfABreak() throws {
+        let start = try date(2026, 8, 27, 10, 0)
+        let dailyBreak = DailyBreak(start: start, end: start.addingTimeInterval(10 * 60))
+
+        XCTAssertFalse(dailyBreak.isInLastMinute(at: start.addingTimeInterval(539)))
+        XCTAssertTrue(dailyBreak.isInLastMinute(at: start.addingTimeInterval(540)))
+        XCTAssertTrue(dailyBreak.isInLastMinute(at: start.addingTimeInterval(599)))
+    }
+
     func testRejectsABreakThatCannotStart() throws {
         let start = try date(2026, 8, 27, 10, 0)
         var limits = try limits(sites: ["youtube.com": 10], at: start, active: false)

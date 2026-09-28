@@ -4,6 +4,15 @@ struct DailyBreak: Codable, Equatable {
     let start: Date
     let end: Date
 
+    func secondsLeft(at date: Date) -> Int {
+        max(0, Int(ceil(end.timeIntervalSince(date))))
+    }
+
+    // The last minute of a break shows a warning color.
+    func isInLastMinute(at date: Date) -> Bool {
+        secondsLeft(at: date) <= 60
+    }
+
     func fractionLeft(at date: Date) -> Double {
         let length = end.timeIntervalSince(start)
         guard length > 0 else { return 0 }

@@ -446,8 +446,7 @@ private struct DailyLimitRow: View {
 
     private func statusText(at date: Date) -> String {
         if let activeBreak = site.activeBreak {
-            let seconds = max(0, Int(ceil(activeBreak.end.timeIntervalSince(date))))
-            return "On a break · \(countdownText(seconds: seconds)) left"
+            return "On a break · \(countdownText(seconds: activeBreak.secondsLeft(at: date))) left"
         }
         if model.dailyLimits.isActive, model.isBlockedBySession(site.domain) {
             return "Blocked by the focus session"
@@ -940,7 +939,7 @@ struct MenuBarContentView: View {
                                 HStack {
                                     Text("Break · \(site.domain)")
                                     Spacer()
-                                    Text(countdownText(seconds: breakSecondsLeft(for: site, at: context.date)))
+                                    Text(countdownText(seconds: site.activeBreak?.secondsLeft(at: context.date) ?? 0))
                                         .monospacedDigit()
                                 }
                                 .font(.caption)
@@ -983,10 +982,6 @@ struct MenuBarContentView: View {
             .padding(5)
         }
         .frame(width: 280)
-    }
-
-    private func breakSecondsLeft(for site: DailyLimitSite, at date: Date) -> Int {
-        max(0, Int(ceil((site.activeBreak?.end ?? date).timeIntervalSince(date))))
     }
 }
 

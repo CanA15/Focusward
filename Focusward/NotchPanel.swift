@@ -334,10 +334,10 @@ private struct NotchBreakRow: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            let secondsLeft = max(0, Int(ceil((site.activeBreak?.end ?? context.date).timeIntervalSince(context.date))))
+            let secondsLeft = site.activeBreak?.secondsLeft(at: context.date) ?? 0
             let fractionLeft = site.activeBreak?.fractionLeft(at: context.date) ?? 0
-            // The last minute of a break uses a warning color.
-            let tint = secondsLeft <= 60 ? Color.orange : Color.accentColor
+            let isInLastMinute = site.activeBreak?.isInLastMinute(at: context.date) ?? false
+            let tint = isInLastMinute ? Color.orange : Color.accentColor
 
             HStack(spacing: 12) {
                 ZStack {
@@ -369,7 +369,7 @@ private struct NotchBreakRow: View {
 
                 Text(countdownText(seconds: secondsLeft))
                     .font(.system(size: 20, weight: .semibold, design: .rounded).monospacedDigit())
-                    .foregroundStyle(secondsLeft <= 60 ? Color.orange : Color.white)
+                    .foregroundStyle(isInLastMinute ? Color.orange : Color.white)
                     .contentTransition(.numericText(countsDown: true))
                     .animation(.snappy, value: secondsLeft)
 
