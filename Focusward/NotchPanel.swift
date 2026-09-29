@@ -24,11 +24,13 @@ final class NotchPanelController: ObservableObject {
         self.model = model
         self.showMainWindow = showMainWindow
 
-        // @Published emits before the model stores the new value, so pass the values on.
+        // @Published emits before the model stores the new value. An update at that time would draw the
+        // break list with the old value, so the panel updates on the next pass of the main run loop.
         model.$dailyLimits
             .map(\.sitesOnBreak.count)
             .removeDuplicates()
             .combineLatest(model.$showsNotchBreakTimer)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] breakCount, isEnabled in
                 MainActor.assumeIsolated {
                     self?.breakCount = breakCount
@@ -46,7 +48,7 @@ final class NotchPanelController: ObservableObject {
             .store(in: &cancellables)
     }
 
-    private var animation: Animation {
+    fileprivate var animation: Animation {
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             ? .easeInOut(duration: 0.2)
             : .spring(duration: 0.4, bounce: 0.25)
@@ -246,7 +248,7 @@ private struct NotchView: View {
                 .opacity(isExpanded ? 1 : 0)
 
             if isExpanded {
-                NotchBreakList(model: model, showMainWindow: controller.showMainWindow)
+                NotchBreakList(model: model, animation: controller.animation, showMainWindow: controller.showMainWindow)
                     .padding(.top, controller.notchSize.height)
                     .frame(width: controller.expandedSize.width)
                     .transition(.blurReplace)
@@ -299,16 +301,23 @@ private struct NotchView: View {
 
 private struct NotchBreakList: View {
     @ObservedObject var model: FocuswardModel
+    let animation: Animation
     let showMainWindow: () -> Void
 
     var body: some View {
+        let sitesOnBreak = model.dailyLimits.sitesOnBreak
+
         VStack(spacing: 0) {
-            ForEach(model.dailyLimits.sitesOnBreak) { site in
+            ForEach(sitesOnBreak) { site in
                 if let activeBreak = site.activeBreak {
                     NotchBreakRow(domain: site.domain, activeBreak: activeBreak) {
                         model.endDailyBreak(for: site.domain)
                     }
                     .frame(height: NotchLayout.rowHeight)
+                    // The ring and the digits have their own animation for a clock tick. Drawn as one image,
+                    // the row moves as a unit when a break starts or ends.
+                    .drawingGroup()
+                    .transition(.opacity)
                 }
             }
 
@@ -332,6 +341,8 @@ private struct NotchBreakList: View {
         .padding(.horizontal, NotchLayout.horizontalInset)
         .padding(.bottom, NotchLayout.bottomInset)
         .foregroundStyle(.white)
+        // The shape changes size with this animation when a break starts or ends, so the rows move with it.
+        .animation(animation, value: sitesOnBreak.map(\.domain))
     }
 }
 
@@ -360,6 +371,8 @@ private struct NotchBreakRow: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(tint)
                 }
+                // The row image ends at the row edge, so the stroke must stay inside the frame.
+                .padding(1.5)
                 .frame(width: 32, height: 32)
                 .accessibilityHidden(true)
 
