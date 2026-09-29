@@ -21,6 +21,12 @@ final class FocusDurationTests: XCTestCase {
         XCTAssertEqual(FocusDuration.label(totalMinutes: 270), "4 hours 30 min")
         XCTAssertEqual(FocusDuration.label(totalMinutes: 1_500), "1 day 1 hour")
         XCTAssertEqual(FocusDuration.label(totalMinutes: 43_200), "30 days")
-        XCTAssertEqual(FocusDuration.compactLabel(totalMinutes: 240), "4h")
+    }
+
+    func testFormatsSessionLengthPresetLabels() {
+        XCTAssertEqual(FocusDuration.compactLabel(totalMinutes: 25), "25 min")
+        XCTAssertEqual(FocusDuration.compactLabel(totalMinutes: 60), "1 hr")
+        XCTAssertEqual(FocusDuration.compactLabel(totalMinutes: 240), "4 hr")
+        XCTAssertEqual(FocusDuration.compactLabel(totalMinutes: 90), "1 hr 30 min")
     }
 }

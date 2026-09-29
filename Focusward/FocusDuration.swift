@@ -28,8 +28,8 @@ enum FocusDuration {
 
     static func compactLabel(totalMinutes: Int) -> String {
         let components = components(totalMinutes: totalMinutes)
-        guard components.hours > 0 else { return "\(components.minutes)m" }
-        guard components.minutes > 0 else { return "\(components.hours)h" }
-        return "\(components.hours)h \(components.minutes)m"
+        guard components.hours > 0 else { return "\(components.minutes) min" }
+        guard components.minutes > 0 else { return "\(components.hours) hr" }
+        return "\(components.hours) hr \(components.minutes) min"
     }
 }
