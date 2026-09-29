@@ -1106,99 +1106,164 @@ private struct NumberStepper: View {
 
 struct MenuBarContentView: View {
     @EnvironmentObject private var model: FocuswardModel
+    @Environment(\.openSettings) private var openSettings
     let showMainWindow: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Label("Focusward", systemImage: model.isProtectionActive ? "shield.fill" : "shield")
-                        .font(.headline)
-                    Spacer()
-                    Text(model.isProtectionActive ? "Active" : "Off")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(model.isProtectionActive ? Color.green : Color.secondary)
-                }
+            HStack(spacing: 8) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 22, height: 22)
+                    .accessibilityHidden(true)
+                Text("Focusward")
+                    .fontWeight(.semibold)
+                Spacer()
+                Circle()
+                    .fill(model.isProtectionActive ? Color.green : Color.secondary)
+                    .frame(width: 7, height: 7)
+                    .accessibilityHidden(true)
+                Text(model.isProtectionActive ? "On" : "Off")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
 
+            VStack(spacing: 6) {
                 if model.isSessionActive {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Focus session")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        TimelineView(.periodic(from: .now, by: 1)) { context in
-                            Text(countdownText(seconds: max(0, Int((model.sessionEnd ?? context.date).timeIntervalSince(context.date)))))
-                                .font(.system(size: 30, weight: .light).monospacedDigit())
-                        }
-                        Text(model.automationMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
+                    sessionCard
                 }
-
                 if model.dailyLimits.isActive {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            Text("Daily Limits")
-                            Spacer()
-                            Text("\(model.dailyLimits.sites.count) website\(model.dailyLimits.sites.count == 1 ? "" : "s")")
-                                .foregroundStyle(.secondary)
-                        }
-                        .font(.callout)
-                        if !model.isSessionActive || model.dailyLimitsMessage != model.automationMessage {
-                            Text(model.dailyLimitsMessage)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                        }
-                        ForEach(model.dailyLimits.sitesOnBreak) { site in
-                            TimelineView(.periodic(from: .now, by: 1)) { context in
-                                HStack {
-                                    Text("Break · \(site.domain)")
-                                    Spacer()
-                                    Text(countdownText(seconds: site.activeBreak?.secondsLeft(at: context.date) ?? 0))
-                                        .monospacedDigit()
-                                }
-                                .font(.caption)
-                            }
-                        }
-                    }
+                    dailyLimitsCard
                 }
-
                 if !model.isProtectionActive {
                     Text("No session or daily limit is active.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
             }
-            .padding(14)
+            .padding(.horizontal, 4)
 
             Divider()
                 .padding(.horizontal, 10)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
 
             VStack(spacing: 0) {
-                Button(action: showMainWindow) {
-                    Label("Open Focusward", systemImage: "macwindow")
-                }
+                Button("Open Focusward", action: showMainWindow)
 
                 ForEach(model.dailyLimits.sitesOnBreak) { site in
-                    Button {
+                    Button("End Break for \(site.domain)") {
                         model.endDailyBreak(for: site.domain)
-                    } label: {
-                        Label("End Break for \(site.domain)", systemImage: "cup.and.saucer")
                     }
                 }
 
                 Button {
+                    NSApp.activate(ignoringOtherApps: true)
+                    openSettings()
+                } label: {
+                    MenuRowTitle(title: "Settings…", shortcut: "⌘,")
+                }
+
+                Divider()
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+
+                Button {
                     NSApp.terminate(nil)
                 } label: {
-                    Label("Quit Focusward", systemImage: "power")
+                    MenuRowTitle(title: "Quit Focusward", shortcut: "⌘Q")
                 }
             }
             .buttonStyle(MenuRowButtonStyle())
-            .padding(5)
         }
-        .frame(width: 280)
+        .padding(6)
+        .frame(width: 300)
+    }
+
+    private var sessionCard: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Focus Session")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(countdownText(seconds: max(0, Int((model.sessionEnd ?? context.date).timeIntervalSince(context.date)))))
+                    .font(.system(size: 34, weight: .light).monospacedDigit())
+                    .tracking(-0.5)
+            }
+            if let end = model.sessionEnd {
+                Text("\(endText(for: end)) · \(tabCountText(model.redirectedTabCount)) redirected")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Text(model.automationMessage)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var dailyLimitsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Daily Limits")
+                    .fontWeight(.semibold)
+                Spacer()
+                Text(websiteCountText(model.dailyLimits.sites.count))
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+
+            if !model.isSessionActive || model.dailyLimitsMessage != model.automationMessage {
+                Text(model.dailyLimitsMessage)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            ForEach(model.dailyLimits.sitesOnBreak) { site in
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    HStack(spacing: 8) {
+                        Image(systemName: "cup.and.saucer")
+                            .foregroundStyle(.tint)
+                            .accessibilityHidden(true)
+                        Text(site.domain)
+                        Spacer()
+                        Text(countdownText(seconds: site.activeBreak?.secondsLeft(at: context.date) ?? 0))
+                            .fontWeight(.medium)
+                            .foregroundStyle(.tint)
+                            .monospacedDigit()
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+private struct MenuRowTitle: View {
+    let title: String
+    let shortcut: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            // The row color changes on hover, so the shortcut uses an opacity of that color.
+            Text(shortcut)
+                .opacity(0.55)
+        }
     }
 }
 
@@ -1237,27 +1302,16 @@ private struct MenuRowButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .labelStyle(MenuRowLabelStyle())
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
+                .padding(.horizontal, 10)
+                .frame(height: 26)
                 .foregroundStyle(isHovered ? Color.white : Color.primary)
                 .background(
                     isHovered ? Color.accentColor.opacity(configuration.isPressed ? 0.8 : 1) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    in: RoundedRectangle(cornerRadius: 7, style: .continuous)
                 )
                 .contentShape(Rectangle())
                 .onHover { isHovered = $0 }
-        }
-    }
-}
-
-private struct MenuRowLabelStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 8) {
-            configuration.icon
-                .frame(width: 18)
-            configuration.title
         }
     }
 }
