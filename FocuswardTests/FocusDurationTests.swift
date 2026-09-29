@@ -23,31 +23,4 @@ final class FocusDurationTests: XCTestCase {
         XCTAssertEqual(FocusDuration.label(totalMinutes: 43_200), "30 days")
         XCTAssertEqual(FocusDuration.compactLabel(totalMinutes: 240), "4h")
     }
-
-    func testCalculatesTheRemainingFractionOfASession() {
-        let start = Date(timeIntervalSince1970: 2_000_000_000)
-        let end = start.addingTimeInterval(3_600)
-
-        XCTAssertEqual(FocusDuration.remainingFraction(start: start, end: end, at: start), 1)
-        XCTAssertEqual(
-            FocusDuration.remainingFraction(start: start, end: end, at: start.addingTimeInterval(900)),
-            0.75
-        )
-        XCTAssertEqual(FocusDuration.remainingFraction(start: start, end: end, at: end), 0)
-    }
-
-    func testKeepsTheRemainingFractionBetweenZeroAndOne() {
-        let start = Date(timeIntervalSince1970: 2_000_000_000)
-        let end = start.addingTimeInterval(3_600)
-
-        XCTAssertEqual(
-            FocusDuration.remainingFraction(start: start, end: end, at: start.addingTimeInterval(-60)),
-            1
-        )
-        XCTAssertEqual(
-            FocusDuration.remainingFraction(start: start, end: end, at: end.addingTimeInterval(60)),
-            0
-        )
-        XCTAssertEqual(FocusDuration.remainingFraction(start: end, end: end, at: start), 0)
-    }
 }

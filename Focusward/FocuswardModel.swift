@@ -24,7 +24,6 @@ final class FocuswardModel: ObservableObject {
     @Published private(set) var usesCustomDuration = false
     @Published private(set) var customHours = 4
     @Published private(set) var customMinutes = 0
-    @Published private(set) var sessionStart: Date?
     @Published private(set) var sessionEnd: Date?
     @Published private(set) var automationMessage = "Ready"
     @Published private(set) var redirectedTabCount = 0
@@ -69,11 +68,9 @@ final class FocuswardModel: ObservableObject {
         }
 
         if let storedEnd = store.sessionEnd, storedEnd > now {
-            self.sessionStart = store.sessionStart
             self.sessionEnd = storedEnd
         } else {
             store.clearSession()
-            self.sessionStart = nil
             self.sessionEnd = nil
         }
 
@@ -164,13 +161,10 @@ final class FocuswardModel: ObservableObject {
             return
         }
 
-        let start = Date()
-        let end = start.addingTimeInterval(TimeInterval(selectedDurationMinutes * 60))
-        sessionStart = start
+        let end = Date().addingTimeInterval(TimeInterval(selectedDurationMinutes * 60))
         sessionEnd = end
         redirectedTabCount = 0
         automationMessage = "Starting Safari monitoring…"
-        store.sessionStart = start
         store.sessionEnd = end
         endDailyBreaksBlockedBySession()
         updateMonitor()
@@ -430,7 +424,6 @@ final class FocuswardModel: ObservableObject {
     }
 
     private func finishSession(message: String) {
-        sessionStart = nil
         sessionEnd = nil
         store.clearSession()
         automationMessage = message

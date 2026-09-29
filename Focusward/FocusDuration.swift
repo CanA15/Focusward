@@ -1,5 +1,3 @@
-import Foundation
-
 enum FocusDuration {
     static let presets = [25, 45, 60, 120, 240]
     static let maximumHours = 720
@@ -33,11 +31,5 @@ enum FocusDuration {
         guard components.hours > 0 else { return "\(components.minutes)m" }
         guard components.minutes > 0 else { return "\(components.hours)h" }
         return "\(components.hours)h \(components.minutes)m"
-    }
-
-    static func remainingFraction(start: Date, end: Date, at date: Date) -> Double {
-        let total = end.timeIntervalSince(start)
-        guard total > 0 else { return 0 }
-        return min(max(end.timeIntervalSince(date) / total, 0), 1)
     }
 }
