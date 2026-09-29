@@ -923,42 +923,50 @@ private struct HoldToConfirmButton: View {
     @State private var pressStart: Date?
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 0.1, paused: pressStart == nil)) { context in
-            Text(label(at: context.date))
-                .font(.body.weight(.semibold))
-                .monospacedDigit()
-        }
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background {
-            Capsule()
-                .fill(tint)
-                .overlay(alignment: .leading) {
-                    Capsule()
-                        .fill(.black.opacity(0.3))
-                        .scaleEffect(x: pressStart == nil ? 0 : 1, anchor: .leading)
+        Text(title)
+            .font(.body.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .overlay(alignment: .trailing) {
+                if let pressStart {
+                    TimelineView(.periodic(from: pressStart, by: 0.1)) { context in
+                        Text("\(secondsLeft(since: pressStart, at: context.date)) s")
+                            .font(.body.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(.white.opacity(0.85))
+                    }
+                    .padding(.trailing, 14)
+                    // The press starts a 5-second animation for the fill. The countdown must not fade with it.
+                    .transaction { $0.animation = nil }
                 }
-                .clipShape(Capsule())
-        }
-        .contentShape(Capsule())
-        .onLongPressGesture(minimumDuration: Self.duration, maximumDistance: 40) {
-            action()
-        } onPressingChanged: { pressing in
-            withAnimation(pressing ? .linear(duration: Self.duration) : .easeOut(duration: 0.2)) {
-                pressStart = pressing ? Date() : nil
             }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
-        .accessibilityHint("Press and hold for \(Int(Self.duration)) seconds.")
-        .accessibilityAddTraits(.isButton)
+            .background {
+                Capsule()
+                    .fill(tint)
+                    .overlay(alignment: .leading) {
+                        Capsule()
+                            .fill(.black.opacity(0.3))
+                            .scaleEffect(x: pressStart == nil ? 0 : 1, anchor: .leading)
+                    }
+                    .clipShape(Capsule())
+            }
+            .contentShape(Capsule())
+            .onLongPressGesture(minimumDuration: Self.duration, maximumDistance: 40) {
+                action()
+            } onPressingChanged: { pressing in
+                withAnimation(pressing ? .linear(duration: Self.duration) : .easeOut(duration: 0.2)) {
+                    pressStart = pressing ? Date() : nil
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(title)
+            .accessibilityHint("Press and hold for \(Int(Self.duration)) seconds.")
+            .accessibilityAddTraits(.isButton)
     }
 
-    private func label(at date: Date) -> String {
-        guard let pressStart else { return title }
-        let secondsLeft = max(1, Int((Self.duration - date.timeIntervalSince(pressStart)).rounded(.up)))
-        return "Keep Holding · \(secondsLeft) s"
+    private func secondsLeft(since pressStart: Date, at date: Date) -> Int {
+        max(1, Int((Self.duration - date.timeIntervalSince(pressStart)).rounded(.up)))
     }
 }
 
