@@ -4,6 +4,7 @@ final class SessionStore {
     private enum Key {
         static let domains = "domains"
         static let preferredDurationMinutes = "preferredDurationMinutes"
+        static let sessionStart = "sessionStart"
         static let sessionEnd = "sessionEnd"
         static let earlyEndReadyAt = "earlyEndReadyAt"
         static let earlyEndRemainingSeconds = "earlyEndRemainingSeconds"
@@ -20,6 +21,11 @@ final class SessionStore {
     var domains: [String] {
         get { defaults.stringArray(forKey: Key.domains) ?? [] }
         set { defaults.set(newValue, forKey: Key.domains) }
+    }
+
+    var sessionStart: Date? {
+        get { date(forKey: Key.sessionStart) }
+        set { set(newValue, forKey: Key.sessionStart) }
     }
 
     var sessionEnd: Date? {
@@ -63,6 +69,7 @@ final class SessionStore {
     }
 
     func clearSession() {
+        sessionStart = nil
         sessionEnd = nil
         // Earlier versions saved an early-end cooldown. Remove the stale values.
         defaults.removeObject(forKey: Key.earlyEndReadyAt)

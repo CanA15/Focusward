@@ -8,18 +8,22 @@ final class SessionStoreTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let store = SessionStore(defaults: defaults)
-        let end = Date(timeIntervalSince1970: 2_000_000_000)
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let end = start.addingTimeInterval(16_200)
 
         store.domains = ["youtube.com"]
         store.preferredDurationMinutes = 270
+        store.sessionStart = start
         store.sessionEnd = end
 
         let restored = SessionStore(defaults: defaults)
         XCTAssertEqual(restored.domains, ["youtube.com"])
         XCTAssertEqual(restored.preferredDurationMinutes, 270)
+        XCTAssertEqual(restored.sessionStart, start)
         XCTAssertEqual(restored.sessionEnd, end)
 
         restored.clearSession()
+        XCTAssertNil(restored.sessionStart)
         XCTAssertNil(restored.sessionEnd)
         XCTAssertEqual(restored.domains, ["youtube.com"])
         XCTAssertEqual(restored.preferredDurationMinutes, 270)

@@ -176,10 +176,28 @@ private struct FocusHero: View {
 
             VStack(spacing: 6) {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(countdownText(seconds: remainingSeconds(at: context.date)))
-                        .font(.system(size: 64, weight: .light).monospacedDigit())
-                        .contentTransition(.numericText(countsDown: true))
-                        .animation(.snappy, value: remainingSeconds(at: context.date))
+                    ZStack {
+                        // A session from an earlier version has no saved start time.
+                        if let start = model.sessionStart, let end = model.sessionEnd {
+                            let fraction = FocusDuration.remainingFraction(start: start, end: end, at: context.date)
+                            Circle()
+                                .stroke(.quaternary, lineWidth: 10)
+                            Circle()
+                                .trim(from: 0, to: fraction)
+                                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                                .rotationEffect(.degrees(-90))
+                                .animation(.linear(duration: 1), value: fraction)
+                        }
+
+                        Text(countdownText(seconds: remainingSeconds(at: context.date)))
+                            .font(.system(size: 64, weight: .light).monospacedDigit())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.4)
+                            .padding(.horizontal, 36)
+                            .contentTransition(.numericText(countsDown: true))
+                            .animation(.snappy, value: remainingSeconds(at: context.date))
+                    }
+                    .frame(width: 280, height: 280)
                 }
 
                 if let end = model.sessionEnd {
