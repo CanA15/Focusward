@@ -5,12 +5,16 @@ import SwiftUI
 struct FocuswardApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = FocuswardModel.shared
+    @State private var selectedSection: FocuswardSection? = .focusSession
 
     var body: some Scene {
         Window("Focusward", id: "main") {
-            MainWindowContent(model: model, appDelegate: appDelegate)
+            MainWindowContent(model: model, appDelegate: appDelegate, selectedSection: $selectedSection)
         }
         .defaultSize(width: 880, height: 660)
+        .commands {
+            SectionCommands(selectedSection: $selectedSection)
+        }
 
         MenuBarExtra {
             MenuBarContentView(showMainWindow: appDelegate.showMainWindow)
@@ -31,9 +35,10 @@ private struct MainWindowContent: View {
     @Environment(\.openWindow) private var openWindow
     @ObservedObject var model: FocuswardModel
     let appDelegate: AppDelegate
+    @Binding var selectedSection: FocuswardSection?
 
     var body: some View {
-        ContentView()
+        ContentView(selectedSection: $selectedSection)
             .environmentObject(model)
             .frame(
                 minWidth: 760,

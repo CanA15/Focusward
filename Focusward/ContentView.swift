@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct ContentView: View {
-    @State private var selectedSection: FocuswardSection? = .focusSession
+    @Binding var selectedSection: FocuswardSection?
 
     var body: some View {
         NavigationSplitView {
@@ -29,7 +29,21 @@ struct ContentView: View {
     }
 }
 
-private enum FocuswardSection: String, CaseIterable, Identifiable {
+struct SectionCommands: Commands {
+    @Binding var selectedSection: FocuswardSection?
+
+    var body: some Commands {
+        CommandGroup(before: .sidebar) {
+            ForEach(Array(FocuswardSection.allCases.enumerated()), id: \.element) { index, section in
+                Button(section.rawValue) { selectedSection = section }
+                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")))
+            }
+            Divider()
+        }
+    }
+}
+
+enum FocuswardSection: String, CaseIterable, Identifiable {
     case focusSession = "Focus Session"
     case dailyLimits = "Daily Limits"
 
@@ -242,6 +256,7 @@ private struct FocusHero: View {
             .buttonStyle(.borderedProminent)
             .buttonBorderShape(.capsule)
             .controlSize(.extraLarge)
+            .keyboardShortcut(.return, modifiers: .command)
             .disabled(!model.canStartSession)
             .padding(.top, 22)
 
@@ -1006,7 +1021,6 @@ private struct AddWebsiteRow<Accessory: View>: View {
     let accessibilityLabel: String
     let onAdd: () -> Void
     @ViewBuilder let accessory: Accessory
-    @FocusState private var isFocused: Bool
 
     private var canAdd: Bool {
         DomainMatcher.normalizeRule(text) != nil
@@ -1026,11 +1040,9 @@ private struct AddWebsiteRow<Accessory: View>: View {
             TextField(accessibilityLabel, text: $text, prompt: Text("Add a website, such as youtube.com"))
                 .textFieldStyle(.plain)
                 .labelsHidden()
-                .focused($isFocused)
                 .onSubmit {
                     if canAdd { onAdd() }
                 }
-                .onAppear { isFocused = true }
             accessory
             Button("Add", action: onAdd)
                 .buttonBorderShape(.capsule)
