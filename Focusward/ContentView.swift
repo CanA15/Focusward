@@ -417,7 +417,7 @@ private struct DailyLimitsView: View {
             Section {
                 Toggle(isOn: activeBinding) {
                     Text("Daily Limits")
-                    Text("Listed websites stay blocked. Take a break to open a website for a set time.")
+                    Text("Listed websites stay blocked. A break opens one website for a set time.")
                 }
                 .toggleStyle(.switch)
                 .disabled(!model.canActivateDailyLimits && !model.dailyLimits.isActive)
@@ -427,8 +427,6 @@ private struct DailyLimitsView: View {
                 if model.dailyLimits.isActive {
                     LabeledContent("Redirected", value: tabCountText(model.dailyRedirectedTabCount))
                 }
-            } footer: {
-                Text(protectionFooter)
             }
 
             Section {
@@ -456,9 +454,15 @@ private struct DailyLimitsView: View {
                     }
                 }
             } header: {
-                Text("Websites")
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Websites")
+                    Spacer()
+                    Text("Break time per day")
+                        .font(.callout.weight(.regular))
+                        .foregroundStyle(.secondary)
+                }
             } footer: {
-                Text("Each rule also applies to its subdomains. The minutes are the break time for each day.")
+                Text(websitesFooter)
             }
         }
         .formStyle(.grouped)
@@ -479,14 +483,14 @@ private struct DailyLimitsView: View {
         }
     }
 
-    private var protectionFooter: String {
+    private var websitesFooter: String {
         if model.dailyLimits.isActive {
             return "Break time resets at midnight. Turn off Daily Limits to change the websites."
         }
         if !model.canActivateDailyLimits {
-            return "Add a website below to turn on Daily Limits."
+            return "Add a website to turn on Daily Limits. Each rule also applies to its subdomains."
         }
-        return "Break time resets at midnight."
+        return "Each rule also applies to its subdomains. Break time resets at midnight."
     }
 }
 
@@ -494,55 +498,83 @@ private struct DailyLimitRow: View {
     @EnvironmentObject private var model: FocuswardModel
     let site: DailyLimitSite
     let onTakeBreak: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 12) {
+            WebsiteTileView(domain: site.domain)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(site.domain)
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(statusText(at: context.date))
+                    if model.dailyLimits.isActive {
+                        Text("\(site.allowanceMinutes) min")
                             .font(.callout)
-                            .foregroundStyle(isOutOfBreakTime ? Color.red : Color.secondary)
-                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
                     }
                 }
-
-                Spacer()
-
-                if !model.dailyLimits.isActive {
-                    NumberStepper(
-                        title: "Break time per day for \(site.domain)",
-                        unit: "min",
-                        value: site.allowanceMinutes,
-                        range: DailyLimits.allowanceRange,
-                        step: 5,
-                        onChange: { model.updateDailyAllowance(for: site.domain, minutes: $0) }
-                    )
-                    RemoveButton(domain: site.domain) {
-                        withAnimation(.snappy) { model.removeDailyLimit(for: site.domain) }
-                    }
-                } else if site.activeBreak != nil {
-                    Button("End Break") {
-                        withAnimation(.snappy) { model.endDailyBreak(for: site.domain) }
-                    }
-                } else {
-                    Button("Take a Break", action: onTakeBreak)
-                        .disabled(!model.canStartDailyBreak(for: site.domain))
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(statusText(at: context.date))
+                        .font(.callout.weight(site.activeBreak == nil ? .regular : .medium))
+                        .foregroundStyle(statusStyle)
+                        .monospacedDigit()
                 }
+                ProgressView(value: min(max(site.usedSeconds / site.allowanceSeconds, 0), 1))
+                    .progressViewStyle(.linear)
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .tint(isOutOfBreakTime ? Color.red : Color.accentColor)
+                    .frame(maxWidth: 260)
+                    .padding(.top, 2)
+                    .animation(.smooth, value: site.usedSeconds)
             }
 
-            ProgressView(value: min(max(site.usedSeconds / site.allowanceSeconds, 0), 1))
-                .progressViewStyle(.linear)
-                .labelsHidden()
-                .tint(isOutOfBreakTime ? Color.red : Color.accentColor)
-                .animation(.smooth, value: site.usedSeconds)
+            Spacer()
+
+            if !model.dailyLimits.isActive {
+                NumberStepper(
+                    title: "Break time per day for \(site.domain)",
+                    unit: "min",
+                    value: site.allowanceMinutes,
+                    range: DailyLimits.allowanceRange,
+                    step: 5,
+                    onChange: { model.updateDailyAllowance(for: site.domain, minutes: $0) }
+                )
+                RemoveButton(domain: site.domain, action: remove)
+                    .opacity(isHovered ? 1 : 0)
+            } else if site.activeBreak != nil {
+                Button("End Break") {
+                    withAnimation(.snappy) { model.endDailyBreak(for: site.domain) }
+                }
+                .buttonBorderShape(.capsule)
+            } else {
+                Button("Take a Break…", action: onTakeBreak)
+                    .buttonBorderShape(.capsule)
+                    .disabled(!model.canStartDailyBreak(for: site.domain))
+            }
         }
-        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .contextMenu {
+            if !model.dailyLimits.isActive {
+                Button("Remove \(site.domain)", role: .destructive, action: remove)
+            }
+        }
     }
 
     private var isOutOfBreakTime: Bool {
         site.activeBreak == nil && site.remainingMinutes == 0
+    }
+
+    private var statusStyle: AnyShapeStyle {
+        if site.activeBreak != nil {
+            return AnyShapeStyle(.tint)
+        }
+        return isOutOfBreakTime ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary)
+    }
+
+    private func remove() {
+        withAnimation(.snappy) { model.removeDailyLimit(for: site.domain) }
     }
 
     private func statusText(at date: Date) -> String {
@@ -555,7 +587,7 @@ private struct DailyLimitRow: View {
         if site.remainingMinutes == 0 {
             return "No break time left today"
         }
-        return "\(site.remainingMinutes) min of break time left today"
+        return "\(site.remainingMinutes) min left today"
     }
 }
 
