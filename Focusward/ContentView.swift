@@ -374,7 +374,11 @@ private struct EndSessionSheet: View {
     @State private var step = Step.confirm
 
     var body: some View {
-        AlertSheetLayout(title: step == .confirm ? "End the Session Early?" : "Hold to End the Session") {
+        AlertSheetLayout(
+            title: step == .confirm ? "End the Session Early?" : "Hold to End the Session",
+            currentStep: step == .confirm ? 1 : 2,
+            stepCount: 2
+        ) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 Text("The session has \(FocusDuration.label(totalMinutes: minutesLeft(at: context.date))) left. All blocked websites open again.")
             }
@@ -665,15 +669,7 @@ private struct BreakRequestSheet: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 12)
-                HStack(spacing: 5) {
-                    ForEach(1 ... 3, id: \.self) { index in
-                        Circle()
-                            .fill(index <= stepNumber ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary))
-                            .frame(width: 7, height: 7)
-                    }
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Step \(stepNumber) of 3")
+                StepDots(currentStep: stepNumber, stepCount: 3)
             }
 
             switch step {
@@ -779,7 +775,11 @@ private struct TurnOffDailyLimitsSheet: View {
     @State private var step = Step.confirm
 
     var body: some View {
-        AlertSheetLayout(title: step == .confirm ? "Turn Off Daily Limits?" : "Hold to Turn Off Daily Limits") {
+        AlertSheetLayout(
+            title: step == .confirm ? "Turn Off Daily Limits?" : "Hold to Turn Off Daily Limits",
+            currentStep: step == .confirm ? 1 : 2,
+            stepCount: 2
+        ) {
             Text("All listed websites open with no limit until you turn on Daily Limits again. A break in progress ends.")
         } actions: {
             switch step {
@@ -800,6 +800,8 @@ private struct TurnOffDailyLimitsSheet: View {
 // The layout follows a macOS alert: the app icon, a title, a message, and full-width buttons.
 private struct AlertSheetLayout<Message: View, Actions: View>: View {
     let title: String
+    let currentStep: Int
+    let stepCount: Int
     @ViewBuilder let message: Message
     @ViewBuilder let actions: Actions
 
@@ -825,6 +827,27 @@ private struct AlertSheetLayout<Message: View, Actions: View>: View {
         .padding(.top, 24)
         .padding(.bottom, 18)
         .frame(width: 320)
+        .overlay(alignment: .topTrailing) {
+            StepDots(currentStep: currentStep, stepCount: stepCount)
+                .padding(16)
+        }
+    }
+}
+
+private struct StepDots: View {
+    let currentStep: Int
+    let stepCount: Int
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(1 ... stepCount, id: \.self) { step in
+                Circle()
+                    .fill(step <= currentStep ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary))
+                    .frame(width: 7, height: 7)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Step \(currentStep) of \(stepCount)")
     }
 }
 
