@@ -120,6 +120,23 @@ private struct FocusSessionView: View {
                     }
                 }
 
+                if model.domains.isEmpty {
+                    VStack(spacing: 4) {
+                        Image(systemName: "globe")
+                            .font(.system(size: 28, weight: .light))
+                            .foregroundStyle(.secondary)
+                            .padding(.bottom, 6)
+                            .accessibilityHidden(true)
+                        Text("No Blocked Websites")
+                            .fontWeight(.semibold)
+                        Text("Add a website to start a session.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                }
+
                 if !model.isSessionActive {
                     AddWebsiteRow(
                         text: $model.draftDomain,
@@ -228,12 +245,6 @@ private struct FocusHero: View {
             .disabled(!model.canStartSession)
             .padding(.top, 22)
 
-            if model.domains.isEmpty {
-                Text("Add a website below to start a session.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 8)
-            }
         }
     }
 
@@ -844,12 +855,11 @@ private struct WebsiteRow: View {
     let domain: String
     let isLocked: Bool
     let onRemove: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "globe")
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
+            WebsiteTileView(domain: domain)
             Text(domain)
                 .textSelection(.enabled)
             Spacer()
@@ -859,9 +869,37 @@ private struct WebsiteRow: View {
                     .foregroundStyle(.tertiary)
                     .accessibilityLabel("Locked")
             } else {
+                // The button stays in the layout and in the accessibility tree when it is hidden.
                 RemoveButton(domain: domain, action: onRemove)
+                    .opacity(isHovered ? 1 : 0)
             }
         }
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .contextMenu {
+            if !isLocked {
+                Button("Remove \(domain)", role: .destructive, action: onRemove)
+            }
+        }
+    }
+}
+
+private struct WebsiteTileView: View {
+    private static let colors: [Color] = [.pink, .orange, .gray, .red, .cyan, .indigo, .green, .purple]
+
+    let domain: String
+    var size: CGFloat = 24
+
+    var body: some View {
+        Text(WebsiteTile.letter(for: domain))
+            .font(.system(size: size / 2, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(
+                Self.colors[WebsiteTile.colorIndex(for: domain) % Self.colors.count].gradient,
+                in: RoundedRectangle(cornerRadius: size / 4, style: .continuous)
+            )
+            .accessibilityHidden(true)
     }
 }
 
@@ -872,20 +910,33 @@ private struct AddWebsiteRow<Accessory: View>: View {
     @ViewBuilder let accessory: Accessory
     @FocusState private var isFocused: Bool
 
+    private var canAdd: Bool {
+        DomainMatcher.normalizeRule(text) != nil
+    }
+
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "plus.circle.fill")
+            Image(systemName: "plus")
+                .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tint)
+                .frame(width: 24, height: 24)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(.tertiary, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                }
                 .accessibilityHidden(true)
             TextField(accessibilityLabel, text: $text, prompt: Text("Add a website, such as youtube.com"))
                 .textFieldStyle(.plain)
                 .labelsHidden()
                 .focused($isFocused)
-                .onSubmit(onAdd)
+                .onSubmit {
+                    if canAdd { onAdd() }
+                }
                 .onAppear { isFocused = true }
             accessory
             Button("Add", action: onAdd)
-                .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
+                .buttonBorderShape(.capsule)
+                .disabled(!canAdd)
         }
     }
 }
