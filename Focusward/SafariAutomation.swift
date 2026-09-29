@@ -25,6 +25,7 @@ enum SafariAutomationError: LocalizedError {
 actor SafariAutomation {
     private static let tabClass: DescType = 0x6254_6162 // 'bTab'
     private static let urlProperty: DescType = 0x7055_524C // 'pURL'
+    private static let requestError = SafariAutomationError.execution("Could not build a Safari request.")
 
     private let queue = DispatchSerialQueue(label: "app.focusward.local.safari-automation")
 
@@ -47,15 +48,15 @@ actor SafariAutomation {
     func redirect(_ tab: SafariTabSnapshot, to destination: URL) throws -> Bool {
         guard let safari = runningSafari() else { return false }
         do {
-            let window = try Self.specifier(class: cWindow, form: formAbsolutePosition, data: NSAppleEventDescriptor(int32: Int32(tab.windowIndex)), in: .null())
-            let tabSpecifier = try Self.specifier(class: Self.tabClass, form: formAbsolutePosition, data: NSAppleEventDescriptor(int32: Int32(tab.tabIndex)), in: window)
-            let url = try Self.urlProperty(of: tabSpecifier)
+            let window = try Self.windowSpecifier(at: tab.windowIndex)
+            let url = try Self.urlProperty(of: Self.tabSpecifier(at: tab.tabIndex, in: window))
 
             // The tab can change after the scan. Only a tab that still shows the scanned URL moves.
             guard try send(kAEGetData, [keyDirectObject: url], to: safari).stringValue == tab.url else {
                 return false
             }
-            try send(kAESetData, [keyDirectObject: url, keyAEData: NSAppleEventDescriptor(string: destination.absoluteString)], to: safari)
+            let destinationURL = NSAppleEventDescriptor(string: destination.absoluteString)
+            try send(kAESetData, [keyDirectObject: url, keyAEData: destinationURL], to: safari)
             return true
         } catch let error as NSError where Self.isMissingObject(error) || Self.isSafariGone(error) {
             return false
@@ -88,10 +89,14 @@ actor SafariAutomation {
     }
 
     private func windowTabURLs(in safari: NSAppleEventDescriptor) throws -> NSAppleEventDescriptor {
-        let everyWindow = try Self.specifier(class: cWindow, form: formAbsolutePosition, data: Self.every(), in: .null())
+        let everyWindow = try Self.specifier(
+            class: cWindow,
+            form: formAbsolutePosition,
+            data: Self.every(),
+            in: .null()
+        )
         do {
-            let everyTab = try Self.specifier(class: Self.tabClass, form: formAbsolutePosition, data: Self.every(), in: everyWindow)
-            return try send(kAEGetData, [keyDirectObject: Self.urlProperty(of: everyTab)], to: safari)
+            return try send(kAEGetData, [keyDirectObject: Self.urlOfEveryTab(in: everyWindow)], to: safari)
         } catch let error as NSError where Self.isMissingObject(error) {
             // A window without tabs, such as the Settings window, fails the request for all windows.
             return try windowTabURLsWindowByWindow(in: safari)
@@ -99,13 +104,13 @@ actor SafariAutomation {
     }
 
     private func windowTabURLsWindowByWindow(in safari: NSAppleEventDescriptor) throws -> NSAppleEventDescriptor {
-        let count = try send(kAECountElements, [keyDirectObject: .null(), keyAEObjectClass: NSAppleEventDescriptor(typeCode: cWindow)], to: safari)
+        let windowClass = NSAppleEventDescriptor(typeCode: cWindow)
+        let count = try send(kAECountElements, [keyDirectObject: .null(), keyAEObjectClass: windowClass], to: safari)
         let windows = NSAppleEventDescriptor.list()
         for index in stride(from: 1, through: Int(count.int32Value), by: 1) {
-            let window = try Self.specifier(class: cWindow, form: formAbsolutePosition, data: NSAppleEventDescriptor(int32: Int32(index)), in: .null())
-            let everyTab = try Self.specifier(class: Self.tabClass, form: formAbsolutePosition, data: Self.every(), in: window)
+            let urlOfEveryTab = try Self.urlOfEveryTab(in: Self.windowSpecifier(at: index))
             do {
-                windows.insert(try send(kAEGetData, [keyDirectObject: Self.urlProperty(of: everyTab)], to: safari), at: 0)
+                windows.insert(try send(kAEGetData, [keyDirectObject: urlOfEveryTab], to: safari), at: 0)
             } catch let error as NSError where Self.isMissingObject(error) {
                 windows.insert(NSAppleEventDescriptor.list(), at: 0)
             }
@@ -155,21 +160,37 @@ actor SafariAutomation {
         record.setDescriptor(container, forKeyword: AEKeyword(keyAEContainer))
         record.setDescriptor(NSAppleEventDescriptor(enumCode: OSType(form)), forKeyword: AEKeyword(keyAEKeyForm))
         record.setDescriptor(data, forKeyword: AEKeyword(keyAEKeyData))
-        guard let specifier = record.coerce(toDescriptorType: typeObjectSpecifier) else {
-            throw SafariAutomationError.execution("Could not build a Safari request.")
-        }
+        guard let specifier = record.coerce(toDescriptorType: typeObjectSpecifier) else { throw requestError }
         return specifier
     }
 
+    private static func windowSpecifier(at index: Int) throws -> NSAppleEventDescriptor {
+        let position = NSAppleEventDescriptor(int32: Int32(index))
+        return try specifier(class: cWindow, form: formAbsolutePosition, data: position, in: .null())
+    }
+
+    private static func tabSpecifier(
+        at index: Int,
+        in window: NSAppleEventDescriptor
+    ) throws -> NSAppleEventDescriptor {
+        let position = NSAppleEventDescriptor(int32: Int32(index))
+        return try specifier(class: tabClass, form: formAbsolutePosition, data: position, in: window)
+    }
+
+    private static func urlOfEveryTab(in windows: NSAppleEventDescriptor) throws -> NSAppleEventDescriptor {
+        try urlProperty(of: specifier(class: tabClass, form: formAbsolutePosition, data: every(), in: windows))
+    }
+
     private static func urlProperty(of tab: NSAppleEventDescriptor) throws -> NSAppleEventDescriptor {
-        try specifier(class: cProperty, form: formPropertyID, data: NSAppleEventDescriptor(typeCode: urlProperty), in: tab)
+        let property = NSAppleEventDescriptor(typeCode: urlProperty)
+        return try specifier(class: cProperty, form: formPropertyID, data: property, in: tab)
     }
 
     private static func every() throws -> NSAppleEventDescriptor {
         let all = withUnsafeBytes(of: OSType(kAEAll)) {
             NSAppleEventDescriptor(descriptorType: typeAbsoluteOrdinal, bytes: $0.baseAddress, length: $0.count)
         }
-        guard let all else { throw SafariAutomationError.execution("Could not build a Safari request.") }
+        guard let all else { throw requestError }
         return all
     }
 

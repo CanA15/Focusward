@@ -248,7 +248,11 @@ private struct NotchView: View {
                 .opacity(isExpanded ? 1 : 0)
 
             if isExpanded {
-                NotchBreakList(model: model, animation: controller.animation, showMainWindow: controller.showMainWindow)
+                NotchBreakList(
+                    model: model,
+                    animation: controller.animation,
+                    showMainWindow: controller.showMainWindow
+                )
                     .padding(.top, controller.notchSize.height)
                     .frame(width: controller.expandedSize.width)
                     .transition(.blurReplace)
