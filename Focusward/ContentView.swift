@@ -937,8 +937,6 @@ private struct HoldToConfirmButton: View {
                             .foregroundStyle(.white.opacity(0.85))
                     }
                     .padding(.trailing, 14)
-                    // The press starts a 5-second animation for the fill. The countdown must not fade with it.
-                    .transaction { $0.animation = nil }
                 }
             }
             .background {
@@ -948,6 +946,11 @@ private struct HoldToConfirmButton: View {
                         Capsule()
                             .fill(.black.opacity(0.3))
                             .scaleEffect(x: pressStart == nil ? 0 : 1, anchor: .leading)
+                            // Only the fill animates. Text changes at once.
+                            .animation(
+                                pressStart == nil ? .easeOut(duration: 0.2) : .linear(duration: Self.duration),
+                                value: pressStart
+                            )
                     }
                     .clipShape(Capsule())
             }
@@ -955,9 +958,7 @@ private struct HoldToConfirmButton: View {
             .onLongPressGesture(minimumDuration: Self.duration, maximumDistance: 40) {
                 action()
             } onPressingChanged: { pressing in
-                withAnimation(pressing ? .linear(duration: Self.duration) : .easeOut(duration: 0.2)) {
-                    pressStart = pressing ? Date() : nil
-                }
+                pressStart = pressing ? Date() : nil
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title)
