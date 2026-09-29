@@ -20,7 +20,8 @@ struct FocuswardApp: App {
             MenuBarContentView(showMainWindow: appDelegate.showMainWindow)
                 .environmentObject(model)
         } label: {
-            Image(systemName: model.isProtectionActive ? "shield.fill" : "shield")
+            Image(model.isProtectionActive ? "MenuBarIconOn" : "MenuBarIconOff")
+                .accessibilityLabel(model.isProtectionActive ? "Focusward, protection on" : "Focusward, protection off")
         }
         .menuBarExtraStyle(.window)
 
