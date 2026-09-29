@@ -660,10 +660,20 @@ private struct BreakRequestSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.title3.weight(.bold))
-                    Text("Step \(stepNumber) of 3 · \(site?.remainingMinutes ?? 0) min of break time left today")
+                    Text("\(site?.remainingMinutes ?? 0) min of break time left today")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
+                Spacer(minLength: 12)
+                HStack(spacing: 5) {
+                    ForEach(1 ... 3, id: \.self) { index in
+                        Circle()
+                            .fill(index <= stepNumber ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary))
+                            .frame(width: 7, height: 7)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Step \(stepNumber) of 3")
             }
 
             switch step {
