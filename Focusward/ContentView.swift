@@ -359,32 +359,23 @@ private struct EndSessionSheet: View {
     @State private var step = Step.confirm
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        AlertSheetLayout(title: step == .confirm ? "End the Session Early?" : "Hold to End the Session") {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text("The session has \(FocusDuration.label(totalMinutes: minutesLeft(at: context.date))) left. All blocked websites open again.")
+            }
+        } actions: {
             switch step {
             case .confirm:
-                Text("End the Session Early?")
-                    .font(.headline)
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text("The session has \(FocusDuration.label(totalMinutes: minutesLeft(at: context.date))) left. All blocked websites open again.")
-                        .foregroundStyle(.secondary)
-                }
-
-                ConfirmationButtons(cancelTitle: "Keep Session", continueTitle: "Continue") {
+                AlertConfirmationButtons(cancelTitle: "Keep Session") {
                     step = .hold
                 }
             case .hold:
-                HoldStep(
-                    title: "Hold to End the Session",
-                    buttonTitle: "Hold to End",
-                    failure: nil
-                ) {
+                AlertHoldButtons(buttonTitle: "Hold to End Session", cancelTitle: "Keep Session") {
                     withAnimation(.smooth(duration: 0.35)) { model.endSessionEarly() }
                     dismiss()
                 }
             }
         }
-        .padding(24)
-        .frame(width: 380)
     }
 
     private func minutesLeft(at date: Date) -> Int {
@@ -632,8 +623,34 @@ private struct BreakRequestSheet: View {
         return site?.defaultBreakMinutes ?? 0
     }
 
+    private var stepNumber: Int {
+        switch step {
+        case .length: 1
+        case .confirm: 2
+        case .hold: 3
+        }
+    }
+
+    private var breakLengthSelection: Binding<Int> {
+        Binding(
+            get: { selectedBreakMinutes },
+            set: { breakMinutes = $0 }
+        )
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 12) {
+                WebsiteTileView(domain: domain, size: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.title3.weight(.bold))
+                    Text("Step \(stepNumber) of 3 · \(site?.remainingMinutes ?? 0) min of break time left today")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             switch step {
             case .length:
                 lengthStep
@@ -641,35 +658,48 @@ private struct BreakRequestSheet: View {
                 confirmStep
             case .hold:
                 HoldStep(
-                    title: "Hold to Start the Break",
-                    buttonTitle: "Hold to Start",
+                    buttonTitle: "Hold to Start Break",
                     failure: failure,
                     onComplete: startBreak
                 )
             }
         }
-        .padding(24)
-        .frame(width: 480)
+        .padding(.horizontal, 24)
+        .padding(.top, 22)
+        .padding(.bottom, 20)
+        .frame(width: 440)
+    }
+
+    private var title: String {
+        switch step {
+        case .length: "Take a Break from \(domain)"
+        case .confirm: "Are You Sure?"
+        case .hold: "Hold to Start the Break"
+        }
+    }
+
+    private var afterBreakText: String {
+        let minutesLeft = site?.remainingMinutes(afterBreakOf: selectedBreakMinutes) ?? 0
+        return "After this break, you will have \(minutesLeft) min of break time left today."
     }
 
     private var lengthStep: some View {
         Group {
-            Text("Take a Break from \(domain)")
-                .font(.headline)
-
-            CapsulePicker(
-                options: breakLengthOptions,
-                selection: selectedBreakMinutes,
-                title: { minutes in
-                    minutes == breakLengthOptions.last ? "All \(minutes) min" : "\(minutes) min"
-                },
-                onSelect: { breakMinutes = $0 }
-            )
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Break length")
-
-            Text("\(site?.remainingMinutes ?? 0) min of break time left today.")
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Break length")
+                    .fontWeight(.semibold)
+                Picker("Break length", selection: breakLengthSelection) {
+                    ForEach(breakLengthOptions, id: \.self) { minutes in
+                        Text(minutes == breakLengthOptions.last ? "All \(minutes) min" : "\(minutes) min")
+                            .tag(minutes)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                Text(afterBreakText)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
 
             ConfirmationButtons(cancelTitle: "Cancel", continueTitle: "Continue") {
                 step = .confirm
@@ -679,13 +709,12 @@ private struct BreakRequestSheet: View {
 
     private var confirmStep: some View {
         Group {
-            Text("Are You Sure?")
-                .font(.headline)
-
             if let site {
-                Text("You took \(breakCountText(site.breakCount)) on \(site.domain) today. You used \(site.usedMinutes) of \(site.allowanceMinutes) minutes.")
-                Text("After this break, you will have \(site.remainingMinutes(afterBreakOf: selectedBreakMinutes)) min of break time left today.")
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("You took \(breakCountText(site.breakCount)) on \(site.domain) today. You used \(site.usedMinutes) of \(site.allowanceMinutes) minutes.")
+                    Text(afterBreakText)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             ConfirmationButtons(cancelTitle: "Not Now", continueTitle: "Yes, Continue") {
@@ -725,50 +754,117 @@ private struct TurnOffDailyLimitsSheet: View {
     @State private var step = Step.confirm
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        AlertSheetLayout(title: step == .confirm ? "Turn Off Daily Limits?" : "Hold to Turn Off Daily Limits") {
+            Text("All listed websites open with no limit until you turn on Daily Limits again. A break in progress ends.")
+        } actions: {
             switch step {
             case .confirm:
-                Text("Turn Off Daily Limits?")
-                    .font(.headline)
-                Text("All listed websites open with no limit until you turn on Daily Limits again. A break in progress ends.")
-                    .foregroundStyle(.secondary)
-
-                ConfirmationButtons(cancelTitle: "Keep On", continueTitle: "Continue") {
+                AlertConfirmationButtons(cancelTitle: "Keep On") {
                     step = .hold
                 }
             case .hold:
-                HoldStep(
-                    title: "Hold to Turn Off Daily Limits",
-                    buttonTitle: "Hold to Turn Off",
-                    failure: nil
-                ) {
+                AlertHoldButtons(buttonTitle: "Hold to Turn Off", cancelTitle: "Keep On") {
                     withAnimation(.snappy) { model.setDailyLimitsActive(false) }
                     dismiss()
                 }
             }
         }
-        .padding(24)
-        .frame(width: 380)
+    }
+}
+
+// The layout follows a macOS alert: the app icon, a title, a message, and full-width buttons.
+private struct AlertSheetLayout<Message: View, Actions: View>: View {
+    let title: String
+    @ViewBuilder let message: Message
+    @ViewBuilder let actions: Actions
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 64, height: 64)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.headline)
+                .padding(.top, 12)
+            message
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .padding(.top, 6)
+            actions
+                .padding(.top, 18)
+        }
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 20)
+        .padding(.top, 24)
+        .padding(.bottom, 18)
+        .frame(width: 320)
+    }
+}
+
+private struct AlertConfirmationButtons: View {
+    @Environment(\.dismiss) private var dismiss
+    let cancelTitle: String
+    let onContinue: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(role: .cancel) { dismiss() } label: {
+                Text(cancelTitle)
+                    .frame(maxWidth: .infinity)
+            }
+            .keyboardShortcut(.cancelAction)
+            Button {
+                withAnimation(.snappy) { onContinue() }
+            } label: {
+                Text("Continue")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .controlSize(.large)
+    }
+}
+
+private struct AlertHoldButtons: View {
+    @Environment(\.dismiss) private var dismiss
+    let buttonTitle: String
+    let cancelTitle: String
+    let onComplete: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HoldToConfirmButton(title: buttonTitle, tint: .red, action: onComplete)
+            Text("Hold for \(Int(HoldToConfirmButton.duration)) seconds. If you release early, the progress resets.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.top, 8)
+            Button(role: .cancel) { dismiss() } label: {
+                Text(cancelTitle)
+                    .frame(maxWidth: .infinity)
+            }
+            .keyboardShortcut(.cancelAction)
+            .controlSize(.large)
+            .padding(.top, 14)
+        }
     }
 }
 
 private struct HoldStep: View {
     @Environment(\.dismiss) private var dismiss
-    let title: String
     let buttonTitle: String
     let failure: String?
     let onComplete: () -> Void
 
     var body: some View {
-        Text(title)
-            .font(.headline)
-
-        HoldToConfirmButton(title: buttonTitle, action: onComplete)
-            .frame(maxWidth: .infinity)
-
-        Text("Hold for \(Int(HoldToConfirmButton.duration)) seconds. Releasing early resets the progress.")
-            .font(.callout)
-            .foregroundStyle(.secondary)
+        VStack(spacing: 10) {
+            HoldToConfirmButton(title: buttonTitle, tint: .accentColor, action: onComplete)
+            Text("Hold the button for \(Int(HoldToConfirmButton.duration)) seconds. If you release it early, the progress resets.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
 
         if let failure {
             Text(failure)
@@ -807,81 +903,51 @@ private struct HoldToConfirmButton: View {
     static let duration: TimeInterval = 5
 
     let title: String
+    let tint: Color
     let action: () -> Void
-    @State private var isPressing = false
+    @State private var pressStart: Date?
 
     var body: some View {
-        Text(title)
-            .font(.body.weight(.semibold))
-            .foregroundStyle(.white)
-            .frame(minWidth: 200)
-            .padding(.vertical, 10)
-            .padding(.horizontal, 20)
-            .background {
-                Capsule()
-                    .fill(Color.accentColor.opacity(0.45))
-                    .overlay(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.accentColor)
-                            .scaleEffect(x: isPressing ? 1 : 0, anchor: .leading)
-                    }
-                    .clipShape(Capsule())
-            }
-            .contentShape(Capsule())
-            .onLongPressGesture(minimumDuration: Self.duration, maximumDistance: 40) {
-                action()
-            } onPressingChanged: { pressing in
-                withAnimation(pressing ? .linear(duration: Self.duration) : .easeOut(duration: 0.2)) {
-                    isPressing = pressing
+        TimelineView(.animation(minimumInterval: 0.1, paused: pressStart == nil)) { context in
+            Text(label(at: context.date))
+                .font(.body.weight(.semibold))
+                .monospacedDigit()
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background {
+            Capsule()
+                .fill(tint)
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(.black.opacity(0.3))
+                        .scaleEffect(x: pressStart == nil ? 0 : 1, anchor: .leading)
                 }
+                .clipShape(Capsule())
+        }
+        .contentShape(Capsule())
+        .onLongPressGesture(minimumDuration: Self.duration, maximumDistance: 40) {
+            action()
+        } onPressingChanged: { pressing in
+            withAnimation(pressing ? .linear(duration: Self.duration) : .easeOut(duration: 0.2)) {
+                pressStart = pressing ? Date() : nil
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(title)
-            .accessibilityHint("Press and hold for \(Int(Self.duration)) seconds.")
-            .accessibilityAddTraits(.isButton)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityHint("Press and hold for \(Int(Self.duration)) seconds.")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private func label(at date: Date) -> String {
+        guard let pressStart else { return title }
+        let secondsLeft = max(1, Int((Self.duration - date.timeIntervalSince(pressStart)).rounded(.up)))
+        return "Keep Holding · \(secondsLeft) s"
     }
 }
 
 // MARK: - Shared controls
-
-private struct CapsulePicker<Option: Hashable>: View {
-    let options: [Option]
-    let selection: Option
-    let title: (Option) -> String
-    let onSelect: (Option) -> Void
-    @Namespace private var selectionNamespace
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(options, id: \.self) { option in
-                let isSelected = option == selection
-                Button {
-                    withAnimation(.snappy(duration: 0.3)) { onSelect(option) }
-                } label: {
-                    Text(title(option))
-                        .font(.callout.weight(isSelected ? .semibold : .regular))
-                        .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-                        .frame(minWidth: 52)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background {
-                            if isSelected {
-                                Capsule()
-                                    .fill(Color(nsColor: .controlColor))
-                                    .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-                                    .matchedGeometryEffect(id: "selection", in: selectionNamespace)
-                            }
-                        }
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
-            }
-        }
-        .padding(3)
-        .background(Color.primary.opacity(0.06), in: Capsule())
-    }
-}
 
 private struct WebsiteRow: View {
     let domain: String
