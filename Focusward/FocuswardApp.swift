@@ -10,8 +10,7 @@ struct FocuswardApp: App {
         Window("Focusward", id: "main") {
             MainWindowContent(model: model, appDelegate: appDelegate)
         }
-        .defaultSize(width: 720, height: 780)
-        .windowToolbarStyle(.unified(showsTitle: false))
+        .defaultSize(width: 880, height: 660)
 
         MenuBarExtra {
             MenuBarContentView(showMainWindow: appDelegate.showMainWindow)
@@ -37,10 +36,10 @@ private struct MainWindowContent: View {
         ContentView()
             .environmentObject(model)
             .frame(
-                minWidth: 640,
-                idealWidth: 720,
-                minHeight: 680,
-                idealHeight: 780
+                minWidth: 760,
+                idealWidth: 880,
+                minHeight: 600,
+                idealHeight: 660
             )
             .onAppear {
                 appDelegate.openMainWindow = {

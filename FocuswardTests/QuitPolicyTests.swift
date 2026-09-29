@@ -23,7 +23,7 @@ final class QuitPolicyTests: XCTestCase {
             QuitPolicy.decision(quitReason: nil, isSessionActive: true, isDailyLimitsActive: true),
             .refuse(
                 title: "A focus session is active",
-                message: "To quit Focusward, end the session early in the Focus Session tab first."
+                message: "To quit Focusward, end the session early in the Focus Session section first."
             )
         )
     }
@@ -33,7 +33,7 @@ final class QuitPolicyTests: XCTestCase {
             QuitPolicy.decision(quitReason: nil, isSessionActive: false, isDailyLimitsActive: true),
             .refuse(
                 title: "Daily Limits are active",
-                message: "To quit Focusward, turn off Daily Limits in the Daily Limits tab first."
+                message: "To quit Focusward, turn off Daily Limits in the Daily Limits section first."
             )
         )
     }

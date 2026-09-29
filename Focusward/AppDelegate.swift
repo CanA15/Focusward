@@ -23,13 +23,13 @@ enum QuitPolicy {
         if isSessionActive {
             return .refuse(
                 title: "A focus session is active",
-                message: "To quit Focusward, end the session early in the Focus Session tab first."
+                message: "To quit Focusward, end the session early in the Focus Session section first."
             )
         }
         if isDailyLimitsActive {
             return .refuse(
                 title: "Daily Limits are active",
-                message: "To quit Focusward, turn off Daily Limits in the Daily Limits tab first."
+                message: "To quit Focusward, turn off Daily Limits in the Daily Limits section first."
             )
         }
         return .allow
@@ -150,7 +150,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func showMainWindow() {
         NSApp.activate(ignoringOtherApps: true)
 
-        if let window = NSApp.windows.first(where: { $0.title == "Focusward" }) {
+        // The window title shows the selected section, so the lookup uses the scene identifier.
+        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" }) {
             if window.isMiniaturized {
                 window.deminiaturize(nil)
             }

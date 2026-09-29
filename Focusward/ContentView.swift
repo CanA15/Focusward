@@ -2,47 +2,108 @@ import AppKit
 import SwiftUI
 
 struct ContentView: View {
-    @State private var selectedFeature = FocuswardFeature.focusSession
+    @State private var selectedSection: FocuswardSection? = .focusSession
 
     var body: some View {
-        ZStack {
-            switch selectedFeature {
-            case .focusSession:
-                FocusSessionView()
-                    .transition(.opacity)
-            case .dailyLimits:
-                DailyLimitsView()
-                    .transition(.opacity)
+        NavigationSplitView {
+            Sidebar(selection: $selectedSection)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 212, max: 260)
+        } detail: {
+            Group {
+                switch selectedSection ?? .focusSession {
+                case .focusSession:
+                    FocusSessionView()
+                case .dailyLimits:
+                    DailyLimitsView()
+                }
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("Feature", selection: $selectedFeature.animation(.easeInOut(duration: 0.2))) {
-                    ForEach(FocuswardFeature.allCases) { feature in
-                        Text(feature.rawValue).tag(feature)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    SettingsLink {
+                        Label("Settings", systemImage: "gearshape")
                     }
+                    .help("Settings")
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
-            }
-
-            ToolbarItem(placement: .primaryAction) {
-                SettingsLink {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .help("Settings")
             }
         }
     }
 }
 
-private enum FocuswardFeature: String, CaseIterable, Identifiable {
+private enum FocuswardSection: String, CaseIterable, Identifiable {
     case focusSession = "Focus Session"
     case dailyLimits = "Daily Limits"
 
     var id: Self { self }
+
+    var systemImage: String {
+        switch self {
+        case .focusSession: "timer"
+        case .dailyLimits: "cup.and.saucer"
+        }
+    }
+}
+
+private struct Sidebar: View {
+    @EnvironmentObject private var model: FocuswardModel
+    @Binding var selection: FocuswardSection?
+
+    var body: some View {
+        List(selection: $selection) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Label(FocuswardSection.focusSession.rawValue, systemImage: FocuswardSection.focusSession.systemImage)
+                    .badge(sessionBadge(at: context.date))
+            }
+            .tag(FocuswardSection.focusSession)
+
+            Label(FocuswardSection.dailyLimits.rawValue, systemImage: FocuswardSection.dailyLimits.systemImage)
+                .badge(model.dailyLimits.isActive ? Text("On") : nil)
+                .tag(FocuswardSection.dailyLimits)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            ProtectionStatus()
+                .padding(10)
+        }
+    }
+
+    private func sessionBadge(at date: Date) -> Text? {
+        guard model.isSessionActive, let end = model.sessionEnd else { return nil }
+        return Text(countdownText(seconds: max(0, Int(end.timeIntervalSince(date)))))
+            .monospacedDigit()
+    }
+}
+
+private struct ProtectionStatus: View {
+    @EnvironmentObject private var model: FocuswardModel
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: model.isProtectionActive ? "checkmark.shield.fill" : "shield")
+                .font(.title3)
+                .foregroundStyle(model.isProtectionActive ? Color.green : Color.secondary)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(model.isProtectionActive ? "Protection On" : "Protection Off")
+                    .font(.callout.weight(.semibold))
+                Text(statusText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 10)
+        .background(.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    // While a session runs, the session message has priority over the Daily Limits message.
+    private var statusText: String {
+        if !model.isSessionActive, model.dailyLimits.isActive {
+            return model.dailyLimitsMessage
+        }
+        return model.automationMessage
+    }
 }
 
 // MARK: - Focus Session
@@ -88,6 +149,7 @@ private struct FocusSessionView: View {
             }
         }
         .formStyle(.grouped)
+        .navigationTitle("Focus Session")
     }
 }
 
@@ -362,6 +424,7 @@ private struct DailyLimitsView: View {
             }
         }
         .formStyle(.grouped)
+        .navigationTitle("Daily Limits")
         .sheet(item: $confirmation) { confirmation in
             switch confirmation {
             case .startBreak(let domain):
