@@ -831,7 +831,7 @@ private struct AlertConfirmationButtons: View {
             }
             .keyboardShortcut(.cancelAction)
             Button {
-                withAnimation(.snappy) { onContinue() }
+                onContinue()
             } label: {
                 Text("Continue")
                     .frame(maxWidth: .infinity)
@@ -906,7 +906,7 @@ private struct ConfirmationButtons: View {
             Button(cancelTitle, role: .cancel) { dismiss() }
                 .keyboardShortcut(.cancelAction)
             Button(continueTitle) {
-                withAnimation(.snappy) { onContinue() }
+                onContinue()
             }
             .buttonStyle(.borderedProminent)
         }
