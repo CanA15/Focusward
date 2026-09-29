@@ -35,12 +35,6 @@ Each rule also applies to its subdomains, so Daily Limits do not accept two rule
 
 When both features apply to the same website, a timed session has priority. The user cannot start a break on a website when a session rule overlaps the Daily Limits rule. A session start ends a break on a website when a session rule overlaps that website's rule, and Focusward charges only the time used.
 
-## Notch break timer
-
-While a Daily Limits break runs, Focusward puts a panel on the notch of the built-in display. The collapsed panel covers only the notch and is transparent. It is not visible, also in screenshots, screen sharing, and mirrored displays, and it does not cover other content. When the pointer stays on the notch for a short time, the panel expands below the notch. A pointer that only crosses the notch does not expand the panel. The expanded panel lists each break with its time left and an End Break button, and it has an Open Focusward button. A ring around each break shows the part of the break that is left. In the last minute of a break, the ring and the time left are orange. The panel stays expanded while the pointer is in it, and it collapses when the pointer leaves it. The panel has no keyboard equivalent. The menu bar menu can also end a break.
-
-Focusward calculates the notch size from the screen values that macOS reports, so the display fits each MacBook model and each display scale setting. A display without a notch does not show the timer. The user can turn off the timer in Settings. The timer is on by default.
-
 ## Intentional limits
 
 - Safari only.

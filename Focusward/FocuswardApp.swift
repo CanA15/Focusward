@@ -24,11 +24,6 @@ struct FocuswardApp: App {
                 .accessibilityLabel(model.isProtectionActive ? "Focusward, protection on" : "Focusward, protection off")
         }
         .menuBarExtraStyle(.window)
-
-        Settings {
-            SettingsView()
-                .environmentObject(model)
-        }
     }
 }
 

@@ -17,14 +17,6 @@ struct ContentView: View {
                     DailyLimitsView()
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    SettingsLink {
-                        Label("Settings", systemImage: "gearshape")
-                    }
-                    .help("Settings")
-                }
-            }
         }
     }
 }
@@ -1119,7 +1111,6 @@ private struct NumberStepper: View {
 
 struct MenuBarContentView: View {
     @EnvironmentObject private var model: FocuswardModel
-    @Environment(\.openSettings) private var openSettings
     let showMainWindow: () -> Void
 
     var body: some View {
@@ -1174,13 +1165,6 @@ struct MenuBarContentView: View {
                     Button("End Break for \(site.domain)") {
                         model.endDailyBreak(for: site.domain)
                     }
-                }
-
-                Button {
-                    NSApp.activate(ignoringOtherApps: true)
-                    openSettings()
-                } label: {
-                    MenuRowTitle(title: "Settings…", shortcut: "⌘,")
                 }
 
                 Divider()
@@ -1277,30 +1261,6 @@ private struct MenuRowTitle: View {
             Text(shortcut)
                 .opacity(0.55)
         }
-    }
-}
-
-struct SettingsView: View {
-    @EnvironmentObject private var model: FocuswardModel
-
-    var body: some View {
-        Form {
-            Section {
-                Toggle(
-                    "Show the break timer in the notch",
-                    isOn: Binding(
-                        get: { model.showsNotchBreakTimer },
-                        set: { model.setShowsNotchBreakTimer($0) }
-                    )
-                )
-            } footer: {
-                Text("While a Daily Limits break runs, move the pointer to the notch to see the time left, to end a break, or to open Focusward. A display without a notch does not show the timer.")
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .formStyle(.grouped)
-        .frame(width: 440)
-        .fixedSize()
     }
 }
 

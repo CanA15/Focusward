@@ -25,19 +25,6 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(restored.preferredDurationMinutes, 270)
     }
 
-    func testShowsTheNotchBreakTimerUntilTheUserTurnsItOff() throws {
-        let suiteName = "FocuswardTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let store = SessionStore(defaults: defaults)
-        XCTAssertTrue(store.showsNotchBreakTimer)
-
-        store.showsNotchBreakTimer = false
-
-        XCTAssertFalse(SessionStore(defaults: defaults).showsNotchBreakTimer)
-    }
-
     func testClearingASessionRemovesTheSavedEarlyEndCooldown() throws {
         let suiteName = "FocuswardTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

@@ -63,17 +63,6 @@ final class DailyLimitsTests: XCTestCase {
         XCTAssertEqual(limits.sitesOnBreak.map(\.domain), ["reddit.com", "youtube.com"])
     }
 
-    func testReportsTheFractionOfABreakThatIsLeft() throws {
-        let start = try date(2026, 8, 27, 10, 0)
-        let dailyBreak = DailyBreak(start: start, end: start.addingTimeInterval(10 * 60))
-
-        XCTAssertEqual(dailyBreak.fractionLeft(at: start.addingTimeInterval(-60)), 1)
-        XCTAssertEqual(dailyBreak.fractionLeft(at: start), 1)
-        XCTAssertEqual(dailyBreak.fractionLeft(at: start.addingTimeInterval(4 * 60)), 0.6, accuracy: 0.0001)
-        XCTAssertEqual(dailyBreak.fractionLeft(at: start.addingTimeInterval(10 * 60)), 0)
-        XCTAssertEqual(dailyBreak.fractionLeft(at: start.addingTimeInterval(11 * 60)), 0)
-    }
-
     func testReportsTheWholeSecondsLeftInABreak() throws {
         let start = try date(2026, 8, 27, 10, 0)
         let dailyBreak = DailyBreak(start: start, end: start.addingTimeInterval(10 * 60))
@@ -82,15 +71,6 @@ final class DailyLimitsTests: XCTestCase {
         XCTAssertEqual(dailyBreak.secondsLeft(at: start.addingTimeInterval(0.4)), 600)
         XCTAssertEqual(dailyBreak.secondsLeft(at: start.addingTimeInterval(599.5)), 1)
         XCTAssertEqual(dailyBreak.secondsLeft(at: start.addingTimeInterval(700)), 0)
-    }
-
-    func testMarksTheLastMinuteOfABreak() throws {
-        let start = try date(2026, 8, 27, 10, 0)
-        let dailyBreak = DailyBreak(start: start, end: start.addingTimeInterval(10 * 60))
-
-        XCTAssertFalse(dailyBreak.isInLastMinute(at: start.addingTimeInterval(539)))
-        XCTAssertTrue(dailyBreak.isInLastMinute(at: start.addingTimeInterval(540)))
-        XCTAssertTrue(dailyBreak.isInLastMinute(at: start.addingTimeInterval(599)))
     }
 
     func testRejectsABreakThatCannotStart() throws {
