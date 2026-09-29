@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B10000000000000000000034 /* SafariAutomationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000034 /* SafariAutomationTests.swift */; };
 		B10000000000000000000032 /* NotchPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000032 /* NotchPanel.swift */; };
 		B10000000000000000000031 /* NotchLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000031 /* NotchLayout.swift */; };
 		B10000000000000000000033 /* NotchLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000033 /* NotchLayoutTests.swift */; };
@@ -40,6 +41,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A10000000000000000000034 /* SafariAutomationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariAutomationTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000032 /* NotchPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchPanel.swift; sourceTree = "<group>"; };
 		A10000000000000000000031 /* NotchLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchLayout.swift; sourceTree = "<group>"; };
 		A10000000000000000000033 /* NotchLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchLayoutTests.swift; sourceTree = "<group>"; };
@@ -134,6 +136,7 @@
 		A10000000000000000000005 /* FocuswardTests */ = {
 			isa = PBXGroup;
 			children = (
+				A10000000000000000000034 /* SafariAutomationTests.swift */,
 				A10000000000000000000033 /* NotchLayoutTests.swift */,
 				A10000000000000000000020 /* DomainMatcherTests.swift */,
 				A10000000000000000000030 /* QuitPolicyTests.swift */,
@@ -259,6 +262,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B10000000000000000000034 /* SafariAutomationTests.swift in Sources */,
 				B10000000000000000000033 /* NotchLayoutTests.swift in Sources */,
 				B10000000000000000000009 /* DomainMatcherTests.swift in Sources */,
 				B10000000000000000000030 /* QuitPolicyTests.swift in Sources */,

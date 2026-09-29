@@ -297,13 +297,13 @@ final class FocuswardModel: ObservableObject {
         monitorTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                self.monitorSafari(at: Date())
+                await self.monitorSafari(at: Date())
                 try? await Task.sleep(for: .milliseconds(500))
             }
         }
     }
 
-    private func monitorSafari(at date: Date) {
+    private func monitorSafari(at date: Date) async {
         var activeSessionEnd: Date?
         if let end = sessionEnd, end <= date {
             finishSession(message: "Session complete")
@@ -320,7 +320,11 @@ final class FocuswardModel: ObservableObject {
         }
 
         do {
-            let snapshots = try safari.tabs()
+            let snapshots = try await safari.tabs()
+
+            // The session or Daily Limits can end while Safari answers.
+            activeSessionEnd = sessionEnd
+            guard activeSessionEnd != nil || dailyLimits.isActive else { return }
 
             var sessionRedirects = 0
             var dailyRedirects = 0
@@ -354,7 +358,7 @@ final class FocuswardModel: ObservableObject {
                 }
 
                 guard let destination else { continue }
-                if try safari.redirect(snapshot, to: destination) {
+                if try await safari.redirect(snapshot, to: destination) {
                     if isSessionBlock {
                         sessionRedirects += 1
                     } else {

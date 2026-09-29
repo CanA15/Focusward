@@ -8,7 +8,7 @@ Focusward must not require or contact a backend. The application bundle contains
 
 1. The user starts a timed session, activates Daily Limits, or uses both features.
 2. Focusward saves each feature state in `UserDefaults`.
-3. Focusward asks Safari for its current windows, tabs, and tab URLs through Apple Events.
+3. Focusward asks Safari for its current windows, tabs, and tab URLs through Apple Events. These requests run on a background queue, so a slow Safari reply or a permission prompt does not block the user interface.
 4. Complete URLs exist only for the duration of a scan. Focusward extracts hostnames and does not log or persist the original URL strings.
 5. A matching tab is navigated to the bundled `blocked.html` file.
 6. The native timers remain authoritative. The countdown displayed by the HTML file is informational.

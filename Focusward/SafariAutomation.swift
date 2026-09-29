@@ -1,20 +1,17 @@
-import Foundation
+import AppKit
 
-struct SafariTabSnapshot {
+struct SafariTabSnapshot: Equatable, Sendable {
     let windowIndex: Int
     let tabIndex: Int
     let url: String
 }
 
 enum SafariAutomationError: LocalizedError {
-    case compilation(String)
     case execution(String)
     case malformedResult
 
     var errorDescription: String? {
         switch self {
-        case .compilation(let message):
-            "Could not prepare Safari automation: \(message)"
         case .execution(let message):
             "Safari automation failed: \(message)"
         case .malformedResult:
@@ -23,110 +20,175 @@ enum SafariAutomationError: LocalizedError {
     }
 }
 
-@MainActor
-final class SafariAutomation {
+// Apple Events wait for Safari, and a permission prompt can hold a request for a long time.
+// The actor runs on its own queue, so this waiting never blocks the main thread or the shared thread pool.
+actor SafariAutomation {
+    private static let tabClass: DescType = 0x6254_6162 // 'bTab'
+    private static let urlProperty: DescType = 0x7055_524C // 'pURL'
+
+    private let queue = DispatchSerialQueue(label: "app.focusward.local.safari-automation")
+
+    nonisolated var unownedExecutor: UnownedSerialExecutor {
+        queue.asUnownedSerialExecutor()
+    }
+
     func tabs() throws -> [SafariTabSnapshot] {
-        let source = """
-        if application "Safari" is not running then return {}
-
-        set tabSnapshots to {}
-        tell application "Safari"
-            repeat with windowIndex from 1 to count of windows
-                repeat with tabIndex from 1 to count of tabs of window windowIndex
-                    try
-                        set tabURL to URL of tab tabIndex of window windowIndex
-                        if tabURL is missing value then set tabURL to ""
-                        set end of tabSnapshots to {windowIndex, tabIndex, tabURL as text}
-                    end try
-                end repeat
-            end repeat
-        end tell
-        return tabSnapshots
-        """
-
-        let result = try execute(source)
-        guard result.descriptorType == typeAEList else {
-            throw SafariAutomationError.malformedResult
+        guard let safari = runningSafari() else { return [] }
+        do {
+            return try Self.snapshots(fromWindowTabURLs: windowTabURLs(in: safari))
+        } catch let error as NSError where Self.isSafariGone(error) {
+            return []
+        } catch {
+            throw Self.automationError(error)
         }
-
-        var snapshots: [SafariTabSnapshot] = []
-        for offset in 0..<result.numberOfItems {
-            let index = offset + 1
-            guard
-                let row = result.atIndex(index),
-                row.descriptorType == typeAEList,
-                row.numberOfItems == 3,
-                let url = row.atIndex(3)?.stringValue
-            else {
-                continue
-            }
-
-            snapshots.append(
-                SafariTabSnapshot(
-                    windowIndex: Int(row.atIndex(1)?.int32Value ?? 0),
-                    tabIndex: Int(row.atIndex(2)?.int32Value ?? 0),
-                    url: url
-                )
-            )
-        }
-
-        return snapshots
     }
 
     @discardableResult
     func redirect(_ tab: SafariTabSnapshot, to destination: URL) throws -> Bool {
-        let expectedURL = appleScriptLiteral(tab.url)
-        let destinationURL = appleScriptLiteral(destination.absoluteString)
+        guard let safari = runningSafari() else { return false }
+        do {
+            let window = try Self.specifier(class: cWindow, form: formAbsolutePosition, data: NSAppleEventDescriptor(int32: Int32(tab.windowIndex)), in: .null())
+            let tabSpecifier = try Self.specifier(class: Self.tabClass, form: formAbsolutePosition, data: NSAppleEventDescriptor(int32: Int32(tab.tabIndex)), in: window)
+            let url = try Self.urlProperty(of: tabSpecifier)
 
-        let source = """
-        if application "Safari" is not running then return false
-
-        tell application "Safari"
-            if (count of windows) < \(tab.windowIndex) then return false
-            if (count of tabs of window \(tab.windowIndex)) < \(tab.tabIndex) then return false
-
-            set candidateTab to tab \(tab.tabIndex) of window \(tab.windowIndex)
-            if (URL of candidateTab as text) is \(expectedURL) then
-                set URL of candidateTab to \(destinationURL)
-                return true
-            end if
-        end tell
-        return false
-        """
-
-        return try execute(source).booleanValue
-    }
-
-    private func execute(_ source: String) throws -> NSAppleEventDescriptor {
-        guard let script = NSAppleScript(source: source) else {
-            throw SafariAutomationError.compilation("Unknown compilation error")
-        }
-
-        var errorInfo: NSDictionary?
-        let result = script.executeAndReturnError(&errorInfo)
-        if let errorInfo {
-            let message = errorInfo[NSAppleScript.errorMessage] as? String
-                ?? errorInfo.description
-            let number = errorInfo[NSAppleScript.errorNumber] as? Int
-
-            if number == -1743 {
-                throw SafariAutomationError.execution(
-                    "Permission was denied. Allow Focusward to control Safari in Privacy & Security → Automation."
-                )
+            // The tab can change after the scan. Only a tab that still shows the scanned URL moves.
+            guard try send(kAEGetData, [keyDirectObject: url], to: safari).stringValue == tab.url else {
+                return false
             }
-
-            throw SafariAutomationError.execution(message)
+            try send(kAESetData, [keyDirectObject: url, keyAEData: NSAppleEventDescriptor(string: destination.absoluteString)], to: safari)
+            return true
+        } catch let error as NSError where Self.isMissingObject(error) || Self.isSafariGone(error) {
+            return false
+        } catch {
+            throw Self.automationError(error)
         }
-
-        return result
     }
 
-    private func appleScriptLiteral(_ value: String) -> String {
-        let escaped = value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\r", with: "\\r")
-            .replacingOccurrences(of: "\n", with: "\\n")
-        return "\"\(escaped)\""
+    static func snapshots(fromWindowTabURLs reply: NSAppleEventDescriptor) throws -> [SafariTabSnapshot] {
+        guard reply.descriptorType == typeAEList else { throw SafariAutomationError.malformedResult }
+
+        var snapshots: [SafariTabSnapshot] = []
+        for windowIndex in stride(from: 1, through: reply.numberOfItems, by: 1) {
+            guard let tabURLs = reply.atIndex(windowIndex), tabURLs.descriptorType == typeAEList else {
+                throw SafariAutomationError.malformedResult
+            }
+            for tabIndex in stride(from: 1, through: tabURLs.numberOfItems, by: 1) {
+                // A tab without a page replies with "missing value" instead of a URL.
+                guard
+                    let tabURL = tabURLs.atIndex(tabIndex),
+                    tabURL.descriptorType != typeType,
+                    let url = tabURL.stringValue
+                else {
+                    continue
+                }
+                snapshots.append(SafariTabSnapshot(windowIndex: windowIndex, tabIndex: tabIndex, url: url))
+            }
+        }
+        return snapshots
+    }
+
+    private func windowTabURLs(in safari: NSAppleEventDescriptor) throws -> NSAppleEventDescriptor {
+        let everyWindow = try Self.specifier(class: cWindow, form: formAbsolutePosition, data: Self.every(), in: .null())
+        do {
+            let everyTab = try Self.specifier(class: Self.tabClass, form: formAbsolutePosition, data: Self.every(), in: everyWindow)
+            return try send(kAEGetData, [keyDirectObject: Self.urlProperty(of: everyTab)], to: safari)
+        } catch let error as NSError where Self.isMissingObject(error) {
+            // A window without tabs, such as the Settings window, fails the request for all windows.
+            return try windowTabURLsWindowByWindow(in: safari)
+        }
+    }
+
+    private func windowTabURLsWindowByWindow(in safari: NSAppleEventDescriptor) throws -> NSAppleEventDescriptor {
+        let count = try send(kAECountElements, [keyDirectObject: .null(), keyAEObjectClass: NSAppleEventDescriptor(typeCode: cWindow)], to: safari)
+        let windows = NSAppleEventDescriptor.list()
+        for index in stride(from: 1, through: Int(count.int32Value), by: 1) {
+            let window = try Self.specifier(class: cWindow, form: formAbsolutePosition, data: NSAppleEventDescriptor(int32: Int32(index)), in: .null())
+            let everyTab = try Self.specifier(class: Self.tabClass, form: formAbsolutePosition, data: Self.every(), in: window)
+            do {
+                windows.insert(try send(kAEGetData, [keyDirectObject: Self.urlProperty(of: everyTab)], to: safari), at: 0)
+            } catch let error as NSError where Self.isMissingObject(error) {
+                windows.insert(NSAppleEventDescriptor.list(), at: 0)
+            }
+        }
+        return windows
+    }
+
+    // A request to a process identifier never launches Safari.
+    private func runningSafari() -> NSAppleEventDescriptor? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Safari")
+            .first { !$0.isTerminated }
+            .map { NSAppleEventDescriptor(processIdentifier: $0.processIdentifier) }
+    }
+
+    @discardableResult
+    private func send(
+        _ eventID: AEEventID,
+        _ parameters: [AEKeyword: NSAppleEventDescriptor],
+        to safari: NSAppleEventDescriptor
+    ) throws -> NSAppleEventDescriptor {
+        let event = NSAppleEventDescriptor.appleEvent(
+            withEventClass: kAECoreSuite,
+            eventID: eventID,
+            targetDescriptor: safari,
+            returnID: AEReturnID(kAutoGenerateReturnID),
+            transactionID: AETransactionID(kAnyTransactionID)
+        )
+        for (keyword, value) in parameters {
+            event.setParam(value, forKeyword: keyword)
+        }
+
+        let reply = try event.sendEvent(options: [.waitForReply, .canInteract], timeout: 30)
+        if let errorNumber = reply.paramDescriptor(forKeyword: keyErrorNumber)?.int32Value, errorNumber != 0 {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(errorNumber))
+        }
+        return reply.paramDescriptor(forKeyword: keyDirectObject) ?? NSAppleEventDescriptor.null()
+    }
+
+    private static func specifier(
+        class desiredClass: DescType,
+        form: Int,
+        data: NSAppleEventDescriptor,
+        in container: NSAppleEventDescriptor
+    ) throws -> NSAppleEventDescriptor {
+        let record = NSAppleEventDescriptor.record()
+        record.setDescriptor(NSAppleEventDescriptor(typeCode: desiredClass), forKeyword: AEKeyword(keyAEDesiredClass))
+        record.setDescriptor(container, forKeyword: AEKeyword(keyAEContainer))
+        record.setDescriptor(NSAppleEventDescriptor(enumCode: OSType(form)), forKeyword: AEKeyword(keyAEKeyForm))
+        record.setDescriptor(data, forKeyword: AEKeyword(keyAEKeyData))
+        guard let specifier = record.coerce(toDescriptorType: typeObjectSpecifier) else {
+            throw SafariAutomationError.execution("Could not build a Safari request.")
+        }
+        return specifier
+    }
+
+    private static func urlProperty(of tab: NSAppleEventDescriptor) throws -> NSAppleEventDescriptor {
+        try specifier(class: cProperty, form: formPropertyID, data: NSAppleEventDescriptor(typeCode: urlProperty), in: tab)
+    }
+
+    private static func every() throws -> NSAppleEventDescriptor {
+        let all = withUnsafeBytes(of: OSType(kAEAll)) {
+            NSAppleEventDescriptor(descriptorType: typeAbsoluteOrdinal, bytes: $0.baseAddress, length: $0.count)
+        }
+        guard let all else { throw SafariAutomationError.execution("Could not build a Safari request.") }
+        return all
+    }
+
+    private static func isSafariGone(_ error: NSError) -> Bool {
+        error.domain == NSOSStatusErrorDomain && [procNotFound, connectionInvalid].contains(error.code)
+    }
+
+    private static func isMissingObject(_ error: NSError) -> Bool {
+        error.domain == NSOSStatusErrorDomain && [errAENoSuchObject, errAEIllegalIndex].contains(error.code)
+    }
+
+    private static func automationError(_ error: Error) -> Error {
+        let nsError = error as NSError
+        guard nsError.domain == NSOSStatusErrorDomain else { return error }
+        if nsError.code == errAEEventNotPermitted {
+            return SafariAutomationError.execution(
+                "Permission was denied. Allow Focusward to control Safari in Privacy & Security → Automation."
+            )
+        }
+        return SafariAutomationError.execution(nsError.localizedDescription)
     }
 }
