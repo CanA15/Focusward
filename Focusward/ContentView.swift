@@ -113,11 +113,10 @@ private struct FocusHero: View {
             StatusCapsule(text: model.automationMessage, isActive: false)
 
             VStack(spacing: 6) {
-                CountdownRing(fraction: 1) {
-                    Text(countdownText(seconds: model.selectedDurationMinutes * 60))
-                        .contentTransition(.numericText())
-                        .animation(.snappy, value: model.selectedDurationMinutes)
-                }
+                Text(countdownText(seconds: model.selectedDurationMinutes * 60))
+                    .font(.system(size: 64, weight: .light).monospacedDigit())
+                    .contentTransition(.numericText())
+                    .animation(.snappy, value: model.selectedDurationMinutes)
 
                 TimelineView(.everyMinute) { context in
                     Text(endText(for: context.date.addingTimeInterval(TimeInterval(model.selectedDurationMinutes * 60))))
@@ -177,11 +176,28 @@ private struct FocusHero: View {
 
             VStack(spacing: 6) {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    CountdownRing(fraction: remainingFraction(at: context.date)) {
+                    ZStack {
+                        // A session from an earlier version has no saved start time.
+                        if let start = model.sessionStart, let end = model.sessionEnd {
+                            let fraction = FocusDuration.remainingFraction(start: start, end: end, at: context.date)
+                            Circle()
+                                .stroke(.quaternary, lineWidth: 10)
+                            Circle()
+                                .trim(from: 0, to: fraction)
+                                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                                .rotationEffect(.degrees(-90))
+                                .animation(.linear(duration: 1), value: fraction)
+                        }
+
                         Text(countdownText(seconds: remainingSeconds(at: context.date)))
+                            .font(.system(size: 64, weight: .light).monospacedDigit())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.4)
+                            .padding(.horizontal, 36)
                             .contentTransition(.numericText(countsDown: true))
                             .animation(.snappy, value: remainingSeconds(at: context.date))
                     }
+                    .frame(width: 280, height: 280)
                 }
 
                 if let end = model.sessionEnd {
@@ -199,38 +215,6 @@ private struct FocusHero: View {
 
     private func remainingSeconds(at date: Date) -> Int {
         max(0, Int((model.sessionEnd ?? date).timeIntervalSince(date)))
-    }
-
-    private func remainingFraction(at date: Date) -> Double? {
-        // A session from an earlier version has no saved start time.
-        guard let start = model.sessionStart, let end = model.sessionEnd else { return nil }
-        return FocusDuration.remainingFraction(start: start, end: end, at: date)
-    }
-}
-
-private struct CountdownRing<Countdown: View>: View {
-    let fraction: Double?
-    @ViewBuilder let countdown: Countdown
-
-    var body: some View {
-        ZStack {
-            if let fraction {
-                Circle()
-                    .stroke(.quaternary, lineWidth: 10)
-                Circle()
-                    .trim(from: 0, to: fraction)
-                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 1), value: fraction)
-            }
-
-            countdown
-                .font(.system(size: 64, weight: .light).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.4)
-                .padding(.horizontal, 36)
-        }
-        .frame(width: 280, height: 280)
     }
 }
 
