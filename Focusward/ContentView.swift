@@ -114,10 +114,6 @@ private struct FocusSessionView: View {
     var body: some View {
         Form {
             Section {
-                FocusHero()
-            }
-
-            Section {
                 ForEach(model.domains, id: \.self) { domain in
                     WebsiteRow(domain: domain, isLocked: model.isSessionActive) {
                         withAnimation(.snappy) { model.removeDomain(domain) }
@@ -133,7 +129,17 @@ private struct FocusSessionView: View {
                     }
                 }
             } header: {
-                Text("Blocked Websites")
+                // In a grouped form, only a section header can show content without a section background.
+                VStack(spacing: 34) {
+                    FocusHero()
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Blocked Websites")
+                        Spacer()
+                        Text(websiteCountText(model.domains.count))
+                            .font(.callout.weight(.regular))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             } footer: {
                 Text(
                     model.isSessionActive
@@ -143,7 +149,7 @@ private struct FocusSessionView: View {
             }
 
             if model.isSessionActive {
-                Section("End Early") {
+                Section {
                     EarlyEndControls()
                 }
             }
@@ -157,7 +163,7 @@ private struct FocusHero: View {
     @EnvironmentObject private var model: FocuswardModel
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 0) {
             if model.isSessionActive {
                 activeContent
             } else {
@@ -165,34 +171,31 @@ private struct FocusHero: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
+        .padding(.top, 8)
+        .font(.body.weight(.regular))
+        .foregroundStyle(.primary)
         .animation(.smooth(duration: 0.35), value: model.isSessionActive)
         .animation(.smooth(duration: 0.3), value: model.usesCustomDuration)
     }
 
     private var setupContent: some View {
         Group {
-            StatusCapsule(text: model.automationMessage, isActive: false)
+            LargeTimeText(seconds: model.selectedDurationMinutes * 60, countsDown: false)
 
-            VStack(spacing: 6) {
-                Text(countdownText(seconds: model.selectedDurationMinutes * 60))
-                    .font(.system(size: 64, weight: .light).monospacedDigit())
-                    .contentTransition(.numericText())
-                    .animation(.snappy, value: model.selectedDurationMinutes)
-
-                TimelineView(.everyMinute) { context in
-                    Text(endText(for: context.date.addingTimeInterval(TimeInterval(model.selectedDurationMinutes * 60))))
-                        .foregroundStyle(.secondary)
-                }
+            TimelineView(.everyMinute) { context in
+                Text(endText(for: context.date.addingTimeInterval(TimeInterval(model.selectedDurationMinutes * 60))))
+                    .foregroundStyle(.secondary)
             }
+            .padding(.top, 8)
 
             DurationPicker()
+                .padding(.top, 22)
 
             if model.usesCustomDuration {
-                HStack(spacing: 20) {
+                HStack(spacing: 24) {
                     NumberStepper(
                         title: "Hours",
-                        unit: "h",
+                        unit: "hr",
                         value: model.customHours,
                         range: 0 ... FocusDuration.maximumHours,
                         step: 1,
@@ -208,57 +211,71 @@ private struct FocusHero: View {
                         onChange: model.setCustomMinutes
                     )
                 }
+                .padding(.top, 16)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            VStack(spacing: 8) {
-                Button {
-                    withAnimation(.smooth(duration: 0.35)) { model.startSession() }
-                } label: {
-                    Text("Start Session")
-                        .frame(minWidth: 160)
-                }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
-                .controlSize(.extraLarge)
-                .disabled(!model.canStartSession)
+            Button {
+                withAnimation(.smooth(duration: 0.35)) { model.startSession() }
+            } label: {
+                Text("Start Session")
+                    .fontWeight(.semibold)
+                    .frame(minWidth: 124)
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .controlSize(.extraLarge)
+            .disabled(!model.canStartSession)
+            .padding(.top, 22)
 
-                if model.domains.isEmpty {
-                    Text("Add a website below to start a session.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
+            if model.domains.isEmpty {
+                Text("Add a website below to start a session.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
             }
         }
     }
 
     private var activeContent: some View {
         Group {
-            StatusCapsule(text: "Session active", isActive: true)
-
-            VStack(spacing: 6) {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(countdownText(seconds: remainingSeconds(at: context.date)))
-                        .font(.system(size: 64, weight: .light).monospacedDigit())
-                        .contentTransition(.numericText(countsDown: true))
-                        .animation(.snappy, value: remainingSeconds(at: context.date))
-                }
-
-                if let end = model.sessionEnd {
-                    Text(endText(for: end))
-                        .foregroundStyle(.secondary)
-                }
+            Label {
+                Text("Blocking \(websiteCountText(model.domains.count)) in Safari")
+            } icon: {
+                Image(systemName: "shield.fill")
+                    .foregroundStyle(.tint)
             }
+            .font(.body.weight(.medium))
+            .foregroundStyle(.secondary)
 
-            Text("\(model.automationMessage) · \(tabCountText(model.redirectedTabCount)) redirected")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                LargeTimeText(seconds: remainingSeconds(at: context.date), countsDown: true)
+            }
+            .padding(.top, 12)
+
+            if let end = model.sessionEnd {
+                Text("\(endText(for: end)) · \(tabCountText(model.redirectedTabCount)) redirected")
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
+            }
         }
     }
 
     private func remainingSeconds(at date: Date) -> Int {
         max(0, Int((model.sessionEnd ?? date).timeIntervalSince(date)))
+    }
+}
+
+private struct LargeTimeText: View {
+    let seconds: Int
+    let countsDown: Bool
+
+    var body: some View {
+        Text(countdownText(seconds: seconds))
+            .font(.system(size: 80, weight: .thin).monospacedDigit())
+            .tracking(-1.5)
+            .contentTransition(.numericText(countsDown: countsDown))
+            .animation(.snappy, value: seconds)
     }
 }
 
@@ -270,23 +287,32 @@ private enum DurationOption: Hashable {
 private struct DurationPicker: View {
     @EnvironmentObject private var model: FocuswardModel
 
-    var body: some View {
-        CapsulePicker(
-            options: FocusDuration.presets.map(DurationOption.preset) + [.custom],
-            selection: model.usesCustomDuration ? .custom : .preset(model.durationMinutes),
-            title: { option in
-                switch option {
-                case .preset(let minutes): FocusDuration.compactLabel(totalMinutes: minutes)
-                case .custom: "Custom"
-                }
-            },
-            onSelect: { option in
-                switch option {
-                case .preset(let minutes): model.selectDurationPreset(minutes)
-                case .custom: model.selectCustomDuration()
+    private var selection: Binding<DurationOption> {
+        Binding(
+            get: { model.usesCustomDuration ? .custom : .preset(model.durationMinutes) },
+            set: { option in
+                withAnimation(.snappy(duration: 0.3)) {
+                    switch option {
+                    case .preset(let minutes): model.selectDurationPreset(minutes)
+                    case .custom: model.selectCustomDuration()
+                    }
                 }
             }
         )
+    }
+
+    var body: some View {
+        Picker("Session length", selection: selection) {
+            ForEach(FocusDuration.presets, id: \.self) { minutes in
+                Text(FocusDuration.compactLabel(totalMinutes: minutes))
+                    .tag(DurationOption.preset(minutes))
+            }
+            Text("Custom")
+                .tag(DurationOption.custom)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
     }
 }
 
@@ -296,13 +322,14 @@ private struct EarlyEndControls: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Need to stop?")
-                Text("To end the session early, you confirm and then hold a button.")
+                Text("End Session Early")
+                Text("You confirm, and then you hold a button for \(Int(HoldToConfirmButton.duration)) seconds.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button("End Session Early…") { isConfirming = true }
+            Button("End Session…") { isConfirming = true }
+                .buttonBorderShape(.capsule)
         }
         .sheet(isPresented: $isConfirming) {
             EndSessionSheet()
@@ -926,28 +953,6 @@ private struct NumberStepper: View {
     }
 }
 
-private struct StatusCapsule: View {
-    let text: String
-    let isActive: Bool
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "circle.fill")
-                .font(.system(size: 7))
-                .foregroundStyle(isActive ? Color.green : Color.secondary.opacity(0.6))
-                .symbolEffect(.pulse, isActive: isActive)
-            Text(text)
-                .font(.callout.weight(.medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(Color.primary.opacity(0.05), in: Capsule())
-        .contentTransition(.opacity)
-    }
-}
-
 // MARK: - Menu bar
 
 struct MenuBarContentView: View {
@@ -1133,4 +1138,8 @@ private func endText(for end: Date) -> String {
 
 private func tabCountText(_ count: Int) -> String {
     "\(count) tab\(count == 1 ? "" : "s")"
+}
+
+private func websiteCountText(_ count: Int) -> String {
+    "\(count) website\(count == 1 ? "" : "s")"
 }
