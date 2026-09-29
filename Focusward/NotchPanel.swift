@@ -162,7 +162,12 @@ final class NotchPanelController: ObservableObject {
         hostingView.onPointerInsideChange = { [weak self] isInside in
             self?.setPointerInside(isInside)
         }
-        panel.contentView = hostingView
+        // As the window content view, a hosting view also sets the window size limits during layout.
+        // When the shape size animates, that causes a constraint update loop, and AppKit stops the app.
+        let contentView = NSView()
+        hostingView.autoresizingMask = [.width, .height]
+        contentView.addSubview(hostingView)
+        panel.contentView = contentView
         self.panel = panel
         self.hostingView = hostingView
         return panel
