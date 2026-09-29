@@ -1174,7 +1174,13 @@ struct MenuBarContentView: View {
                 Button {
                     NSApp.terminate(nil)
                 } label: {
-                    MenuRowTitle(title: "Quit Focusward", shortcut: "⌘Q")
+                    HStack {
+                        Text("Quit Focusward")
+                        Spacer()
+                        // The row color changes on hover, so the shortcut uses an opacity of that color.
+                        Text("⌘Q")
+                            .opacity(0.55)
+                    }
                 }
             }
             .buttonStyle(MenuRowButtonStyle())
@@ -1249,21 +1255,6 @@ struct MenuBarContentView: View {
     }
 }
 
-private struct MenuRowTitle: View {
-    let title: String
-    let shortcut: String
-
-    var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            // The row color changes on hover, so the shortcut uses an opacity of that color.
-            Text(shortcut)
-                .opacity(0.55)
-        }
-    }
-}
-
 private struct MenuRowButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         MenuRow(configuration: configuration)
@@ -1291,7 +1282,7 @@ private struct MenuRowButtonStyle: ButtonStyle {
 
 // MARK: - Formatting
 
-func countdownText(seconds: Int) -> String {
+private func countdownText(seconds: Int) -> String {
     let days = seconds / 86_400
     let hours = (seconds % 86_400) / 3_600
     let minutes = (seconds % 3_600) / 60
