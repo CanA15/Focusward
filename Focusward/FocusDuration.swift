@@ -1,5 +1,6 @@
 enum FocusDuration {
     static let presets = [25, 45, 60, 120, 240]
+    static let defaultMinutes = 45
     static let maximumHours = 720
 
     static func totalMinutes(hours: Int, minutes: Int) -> Int {

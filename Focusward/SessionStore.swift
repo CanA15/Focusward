@@ -30,7 +30,7 @@ final class SessionStore {
     var preferredDurationMinutes: Int {
         get {
             let stored = defaults.integer(forKey: Key.preferredDurationMinutes)
-            return stored > 0 ? stored : 45
+            return stored > 0 ? stored : FocusDuration.defaultMinutes
         }
         set {
             defaults.set(

@@ -255,7 +255,7 @@ struct DailyLimits: Codable, Equatable {
         calendar.date(byAdding: .day, value: 1, to: periodStart)
     }
 
-    private static func clampedAllowance(_ minutes: Int) -> Int {
+    static func clampedAllowance(_ minutes: Int) -> Int {
         min(max(minutes, allowanceRange.lowerBound), allowanceRange.upperBound)
     }
 }

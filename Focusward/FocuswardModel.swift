@@ -26,7 +26,7 @@ final class FocuswardModel: ObservableObject {
 
     @Published private(set) var domains: [String]
     @Published var draftDomain = ""
-    @Published private(set) var durationMinutes = 45
+    @Published private(set) var durationMinutes = FocusDuration.defaultMinutes
     @Published private(set) var usesCustomDuration = false
     @Published private(set) var customHours = 4
     @Published private(set) var customMinutes = 0
@@ -182,10 +182,7 @@ final class FocuswardModel: ObservableObject {
 
     func setDailyDraftAllowanceMinutes(_ minutes: Int) {
         guard !dailyLimits.isActive else { return }
-        dailyDraftAllowanceMinutes = min(
-            max(minutes, DailyLimits.allowanceRange.lowerBound),
-            DailyLimits.allowanceRange.upperBound
-        )
+        dailyDraftAllowanceMinutes = DailyLimits.clampedAllowance(minutes)
     }
 
     func addDailyDraftSite() {
