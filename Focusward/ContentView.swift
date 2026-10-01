@@ -820,7 +820,7 @@ private struct AlertHoldButtons: View {
     var body: some View {
         VStack(spacing: 0) {
             HoldToConfirmButton(title: buttonTitle, tint: .red, action: onComplete)
-            Text("Hold for \(Int(HoldToConfirmButton.duration)) seconds. If you release early, the progress resets.")
+            Text(HoldToConfirmButton.instruction)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)
@@ -844,7 +844,7 @@ private struct HoldStep: View {
     var body: some View {
         VStack(spacing: 10) {
             HoldToConfirmButton(title: buttonTitle, tint: .accentColor, action: onComplete)
-            Text("Hold the button for \(Int(HoldToConfirmButton.duration)) seconds. If you release it early, the progress resets.")
+            Text(HoldToConfirmButton.instruction)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -885,6 +885,7 @@ private struct ConfirmationButtons: View {
 // A long press has no keyboard equivalent. See docs/ARCHITECTURE.md.
 private struct HoldToConfirmButton: View {
     static let duration: TimeInterval = 5
+    static let instruction = "Hold the button for \(Int(duration)) seconds. If you release it early, the progress resets."
 
     let title: String
     let tint: Color
