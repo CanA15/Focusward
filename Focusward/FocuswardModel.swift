@@ -14,6 +14,12 @@ enum DailyBreakError: LocalizedError {
     }
 }
 
+private struct ShieldPageError: LocalizedError {
+    var errorDescription: String? {
+        "Focusward could not open the bundled shield page."
+    }
+}
+
 @MainActor
 final class FocuswardModel: ObservableObject {
     static let shared = FocuswardModel()
@@ -327,9 +333,7 @@ final class FocuswardModel: ObservableObject {
                 guard let hostname = DomainMatcher.hostname(from: snapshot.url) else { continue }
 
                 if let sessionEnd, DomainMatcher.isBlocked(hostname: hostname, by: domains) {
-                    guard
-                        let destination = shieldURL(blockEnd: sessionEnd, hostname: hostname, mode: "session")
-                    else { continue }
+                    let destination = try shieldURL(blockEnd: sessionEnd, hostname: hostname, mode: "session")
                     if try await safari.redirect(snapshot, to: destination) {
                         sessionRedirects += 1
                     }
@@ -337,15 +341,13 @@ final class FocuswardModel: ObservableObject {
                     let site = dailyLimits.blockingSite(for: hostname),
                     let reset = dailyLimits.nextReset()
                 {
-                    guard
-                        let destination = shieldURL(
-                            blockEnd: reset,
-                            hostname: hostname,
-                            mode: "daily",
-                            breakMinutesLeft: site.remainingMinutes,
-                            isBreakBlockedBySession: isBlockedBySession(site.domain)
-                        )
-                    else { continue }
+                    let destination = try shieldURL(
+                        blockEnd: reset,
+                        hostname: hostname,
+                        mode: "daily",
+                        breakMinutesLeft: site.remainingMinutes,
+                        isBreakBlockedBySession: isBlockedBySession(site.domain)
+                    )
                     if try await safari.redirect(snapshot, to: destination) {
                         dailyRedirects += 1
                     }
@@ -382,17 +384,14 @@ final class FocuswardModel: ObservableObject {
         mode: String,
         breakMinutesLeft: Int? = nil,
         isBreakBlockedBySession: Bool = false
-    ) -> URL? {
-        guard let resource = Bundle.main.url(forResource: "blocked", withExtension: "html") else {
-            if mode == "daily" {
-                dailyLimitsMessage = "The bundled shield page is missing"
-            } else {
-                automationMessage = "The bundled shield page is missing"
-            }
-            return nil
+    ) throws -> URL {
+        guard
+            let resource = Bundle.main.url(forResource: "blocked", withExtension: "html"),
+            var components = URLComponents(url: resource, resolvingAgainstBaseURL: false)
+        else {
+            throw ShieldPageError()
         }
 
-        var components = URLComponents(url: resource, resolvingAgainstBaseURL: false)
         var fragment = "end=\(Int(blockEnd.timeIntervalSince1970))&host=\(hostname)&mode=\(mode)"
         if let breakMinutesLeft {
             fragment += "&left=\(breakMinutesLeft)"
@@ -400,8 +399,9 @@ final class FocuswardModel: ObservableObject {
         if isBreakBlockedBySession {
             fragment += "&session=1"
         }
-        components?.fragment = fragment
-        return components?.url
+        components.fragment = fragment
+        guard let url = components.url else { throw ShieldPageError() }
+        return url
     }
 
     private func blockedTabsMessage(count: Int) -> String {
