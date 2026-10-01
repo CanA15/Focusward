@@ -72,6 +72,22 @@ final class FocuswardModelTests: XCTestCase {
         XCTAssertEqual(model.redirectedTabCount, 2)
     }
 
+    func testIgnoresRequestsThatTheControlsDoNotAllow() throws {
+        let model = try makeModel(safari: FakeSafari(urls: []))
+
+        model.draftDomain = "not a domain"
+        model.addDraftDomain()
+        model.startSession()
+        model.dailyDraftDomain = "not a domain"
+        model.addDailyDraftSite()
+        model.setDailyLimitsActive(true)
+
+        XCTAssertEqual(model.domains, [])
+        XCTAssertFalse(model.isSessionActive)
+        XCTAssertEqual(model.dailyLimits.sites, [])
+        XCTAssertFalse(model.dailyLimits.isActive)
+    }
+
     func testKeepsUnreadableDailyLimitsAndReportsTheError() throws {
         let defaults = try makeDefaults()
         let unreadable = Data("not a property list".utf8)

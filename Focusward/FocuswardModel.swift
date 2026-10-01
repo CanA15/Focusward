@@ -70,7 +70,7 @@ final class FocuswardModel: ObservableObject {
         let preferredDuration = store.preferredDurationMinutes
         if FocusDuration.presets.contains(preferredDuration) {
             self.durationMinutes = preferredDuration
-        } else if preferredDuration > 0 {
+        } else {
             let components = FocusDuration.components(totalMinutes: preferredDuration)
             self.usesCustomDuration = true
             self.customHours = components.hours
@@ -112,10 +112,7 @@ final class FocuswardModel: ObservableObject {
     }
 
     func addDraftDomain() {
-        guard let normalized = DomainMatcher.normalizeRule(draftDomain) else {
-            automationMessage = "Enter a valid domain such as youtube.com"
-            return
-        }
+        guard let normalized = DomainMatcher.normalizeRule(draftDomain) else { return }
 
         if !domains.contains(normalized) {
             domains.append(normalized)
@@ -162,15 +159,7 @@ final class FocuswardModel: ObservableObject {
     }
 
     func startSession() {
-        guard !domains.isEmpty else {
-            automationMessage = "Add at least one domain first"
-            return
-        }
-
-        guard selectedDurationMinutes > 0 else {
-            automationMessage = "Choose a session length first"
-            return
-        }
+        guard canStartSession else { return }
 
         let end = Date().addingTimeInterval(TimeInterval(selectedDurationMinutes * 60))
         sessionEnd = end
@@ -191,10 +180,7 @@ final class FocuswardModel: ObservableObject {
 
     func addDailyDraftSite() {
         guard !dailyLimits.isActive else { return }
-        guard let normalized = DomainMatcher.normalizeRule(dailyDraftDomain) else {
-            dailyLimitsMessage = "Enter a valid domain such as youtube.com"
-            return
-        }
+        guard let normalized = DomainMatcher.normalizeRule(dailyDraftDomain) else { return }
         if let existing = dailyLimits.overlappingSite(for: normalized) {
             dailyLimitsMessage = existing.domain == normalized
                 ? "A daily limit already exists for \(normalized)"
@@ -230,10 +216,7 @@ final class FocuswardModel: ObservableObject {
 
     func setDailyLimitsActive(_ active: Bool) {
         guard active != dailyLimits.isActive else { return }
-        if active, dailyLimits.sites.isEmpty {
-            dailyLimitsMessage = "Add at least one website first"
-            return
-        }
+        if active, !canActivateDailyLimits { return }
 
         let now = Date()
         dailyLimits.setActive(active, at: now)
