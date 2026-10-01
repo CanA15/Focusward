@@ -20,9 +20,14 @@ enum SafariAutomationError: LocalizedError {
     }
 }
 
+protocol SafariTabAutomation: Sendable {
+    func tabs() async throws -> [SafariTabSnapshot]
+    func redirect(_ tab: SafariTabSnapshot, to destination: URL) async throws -> Bool
+}
+
 // Apple Events wait for Safari, and a permission prompt can hold a request for a long time.
 // The actor runs on its own queue, so this waiting never blocks the main thread or the shared thread pool.
-actor SafariAutomation {
+actor SafariAutomation: SafariTabAutomation {
     private static let tabClass: DescType = 0x6254_6162 // 'bTab'
     private static let urlProperty: DescType = 0x7055_524C // 'pURL'
     private static let requestError = SafariAutomationError.execution("Could not build a Safari request.")
@@ -44,7 +49,6 @@ actor SafariAutomation {
         }
     }
 
-    @discardableResult
     func redirect(_ tab: SafariTabSnapshot, to destination: URL) throws -> Bool {
         guard let safari = runningSafari() else { return false }
         do {

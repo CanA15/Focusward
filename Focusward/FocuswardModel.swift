@@ -34,17 +34,21 @@ final class FocuswardModel: ObservableObject {
     @Published private(set) var dailyRedirectedTabCount = 0
 
     private let store: SessionStore
-    private let safari: SafariAutomation
+    private let safari: any SafariTabAutomation
+    private let monitorsSafariAutomatically: Bool
     private var monitorTask: Task<Void, Never>?
     private var lastDailyPersistenceAt: Date?
     private var dailyLimitsNeedPersistence = false
 
-    private init(
+    // Tests turn off the automatic monitor and call monitorSafari(at:) with controlled dates.
+    init(
         store: SessionStore = SessionStore(),
-        safari: SafariAutomation = SafariAutomation()
+        safari: any SafariTabAutomation = SafariAutomation(),
+        monitorsSafariAutomatically: Bool = true
     ) {
         self.store = store
         self.safari = safari
+        self.monitorsSafariAutomatically = monitorsSafariAutomatically
         self.domains = store.domains
 
         let now = Date()
@@ -285,7 +289,7 @@ final class FocuswardModel: ObservableObject {
             monitorTask = nil
             return
         }
-        guard monitorTask == nil else { return }
+        guard monitorsSafariAutomatically, monitorTask == nil else { return }
 
         monitorTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
@@ -296,7 +300,7 @@ final class FocuswardModel: ObservableObject {
         }
     }
 
-    private func monitorSafari(at date: Date) async {
+    func monitorSafari(at date: Date) async {
         var activeSessionEnd: Date?
         if let end = sessionEnd, end <= date {
             finishSession(message: "Session complete")
