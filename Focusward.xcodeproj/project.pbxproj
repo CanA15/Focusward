@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		B10000000000000000000034 /* SafariAutomationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000034 /* SafariAutomationTests.swift */; };
 		B10000000000000000000037 /* FocuswardModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000037 /* FocuswardModelTests.swift */; };
+		B10000000000000000000038 /* BundleResourcesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000038 /* BundleResourcesTests.swift */; };
 		B10000000000000000000036 /* WebsiteTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000036 /* WebsiteTile.swift */; };
 		B10000000000000000000035 /* WebsiteTileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000035 /* WebsiteTileTests.swift */; };
 		B10000000000000000000001 /* FocuswardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* FocuswardApp.swift */; };
@@ -43,6 +44,7 @@
 /* Begin PBXFileReference section */
 		A10000000000000000000034 /* SafariAutomationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariAutomationTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000037 /* FocuswardModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocuswardModelTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000038 /* BundleResourcesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleResourcesTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000036 /* WebsiteTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteTile.swift; sourceTree = "<group>"; };
 		A10000000000000000000035 /* WebsiteTileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteTileTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000010 /* Focusward.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Focusward.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -137,6 +139,7 @@
 			children = (
 				A10000000000000000000034 /* SafariAutomationTests.swift */,
 				A10000000000000000000037 /* FocuswardModelTests.swift */,
+				A10000000000000000000038 /* BundleResourcesTests.swift */,
 				A10000000000000000000035 /* WebsiteTileTests.swift */,
 				A10000000000000000000020 /* DomainMatcherTests.swift */,
 				A10000000000000000000030 /* QuitPolicyTests.swift */,
@@ -263,6 +266,7 @@
 			files = (
 				B10000000000000000000034 /* SafariAutomationTests.swift in Sources */,
 				B10000000000000000000037 /* FocuswardModelTests.swift in Sources */,
+				B10000000000000000000038 /* BundleResourcesTests.swift in Sources */,
 				B10000000000000000000035 /* WebsiteTileTests.swift in Sources */,
 				B10000000000000000000009 /* DomainMatcherTests.swift in Sources */,
 				B10000000000000000000030 /* QuitPolicyTests.swift in Sources */,
