@@ -143,13 +143,11 @@ private struct FocusSessionView: View {
                     .padding(.vertical, 14)
                 }
 
-                if !model.isSessionActive {
-                    AddWebsiteRow(
-                        text: $model.draftDomain,
-                        accessibilityLabel: "Website to block"
-                    ) {
-                        withAnimation(.snappy) { model.addDraftDomain() }
-                    }
+                AddWebsiteRow(
+                    text: $model.draftDomain,
+                    accessibilityLabel: "Website to block"
+                ) {
+                    withAnimation(.snappy) { model.addDraftDomain() }
                 }
             } header: {
                 // In a grouped form, only a section header can show content without a section background.
@@ -166,7 +164,7 @@ private struct FocusSessionView: View {
             } footer: {
                 Text(
                     model.isSessionActive
-                        ? "You can change the websites after the session ends."
+                        ? "You can add websites now. You can remove websites after the session ends."
                         : "Subdomains are blocked too. Blocking applies to Safari, and your settings stay on this Mac."
                 )
             }

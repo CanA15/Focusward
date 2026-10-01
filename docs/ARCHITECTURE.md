@@ -33,7 +33,9 @@ Focusward resets all break time and ends all breaks at local midnight. Deactivat
 
 Each rule also applies to its subdomains, so Daily Limits do not accept two rules that cover the same hostnames. For example, `m.youtube.com` cannot be added when `youtube.com` is in the list.
 
-When both features apply to the same website, a timed session has priority. The user cannot start a break on a website when a session rule overlaps the Daily Limits rule. A session start ends a break on a website when a session rule overlaps that website's rule, and Focusward charges only the time used.
+When both features apply to the same website, a timed session has priority. The user cannot start a break on a website when a session rule overlaps the Daily Limits rule. A session start ends a break on a website when a session rule overlaps that website's rule, and Focusward charges only the time used. A website added during a session has the same effect.
+
+During a timed session, the user can add websites to the session list. The user cannot remove websites until the session ends.
 
 ## Intentional limits
 

@@ -50,6 +50,28 @@ final class FocuswardModelTests: XCTestCase {
         XCTAssertEqual(model.automationMessage, "Session ended early")
     }
 
+    func testAWebsiteAddedDuringASessionIsBlockedAndEndsItsBreak() async throws {
+        let safari = FakeSafari(urls: ["https://youtube.com/", "https://reddit.com/"])
+        let model = try makeModel(safari: safari)
+        model.dailyDraftDomain = "youtube.com"
+        model.addDailyDraftSite()
+        model.setDailyLimitsActive(true)
+        try model.startDailyBreak(for: "youtube.com", minutes: 5)
+        model.draftDomain = "reddit.com"
+        model.addDraftDomain()
+        model.startSession()
+
+        model.draftDomain = "youtube.com"
+        model.addDraftDomain()
+        await model.monitorSafari(at: Date())
+
+        XCTAssertEqual(model.domains, ["reddit.com", "youtube.com"])
+        XCTAssertNil(model.dailyLimits.site(for: "youtube.com")?.activeBreak)
+        let redirects = await safari.redirects
+        XCTAssertEqual(redirects.map(\.tabURL), ["https://youtube.com/", "https://reddit.com/"])
+        XCTAssertEqual(model.redirectedTabCount, 2)
+    }
+
     func testKeepsUnreadableDailyLimitsAndReportsTheError() throws {
         let defaults = try makeDefaults()
         let unreadable = Data("not a property list".utf8)
