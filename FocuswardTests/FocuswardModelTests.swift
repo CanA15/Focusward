@@ -65,6 +65,33 @@ final class FocuswardModelTests: XCTestCase {
         XCTAssertEqual(try SessionStore(defaults: defaults).loadDailyLimits()?.sites.map(\.domain), ["youtube.com"])
     }
 
+    func testSavesABreakThatEndedWhileFocuswardWasNotRunning() throws {
+        let store = try makeStore()
+        let breakStart = Date().addingTimeInterval(-30 * 60)
+        var limits = DailyLimits(now: breakStart)
+        limits.addSite(domain: "youtube.com", allowanceMinutes: 30, at: breakStart)
+        limits.setActive(true, at: breakStart)
+        limits.startBreak(for: "youtube.com", minutes: 5, at: breakStart)
+        try store.saveDailyLimits(limits)
+
+        _ = makeModel(safari: FakeSafari(urls: []), store: store)
+
+        XCTAssertNil(try store.loadDailyLimits()?.site(for: "youtube.com")?.activeBreak)
+    }
+
+    func testSavesABreakThatEndsDuringMonitoring() async throws {
+        let store = try makeStore()
+        let model = makeModel(safari: FakeSafari(urls: []), store: store)
+        model.dailyDraftDomain = "youtube.com"
+        model.addDailyDraftSite()
+        model.setDailyLimitsActive(true)
+        try model.startDailyBreak(for: "youtube.com", minutes: 5)
+
+        await model.monitorSafari(at: Date().addingTimeInterval(6 * 60))
+
+        XCTAssertNil(try store.loadDailyLimits()?.site(for: "youtube.com")?.activeBreak)
+    }
+
     private func makeModel(safari: FakeSafari) throws -> FocuswardModel {
         try makeModel(safari: safari, store: makeStore())
     }

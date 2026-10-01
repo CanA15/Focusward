@@ -43,8 +43,6 @@ final class FocuswardModel: ObservableObject {
     private let safari: any SafariTabAutomation
     private let monitorsSafariAutomatically: Bool
     private var monitorTask: Task<Void, Never>?
-    private var lastDailyPersistenceAt: Date?
-    private var dailyLimitsNeedPersistence = false
 
     // Tests turn off the automatic monitor and call monitorSafari(at:) with controlled dates.
     init(
@@ -64,7 +62,6 @@ final class FocuswardModel: ObservableObject {
         } catch {
             self.dailyLimitsMessage = "Focusward could not read the saved Daily Limits. It kept a copy of the data."
         }
-        restoredDailyLimits.refresh(at: now)
         self.dailyLimits = restoredDailyLimits
         if restoredDailyLimits.isActive {
             self.dailyLimitsMessage = "Safari monitoring active"
@@ -87,6 +84,7 @@ final class FocuswardModel: ObservableObject {
             self.sessionEnd = nil
         }
 
+        refreshDailyLimits(at: now)
         updateMonitor()
     }
 
@@ -276,15 +274,11 @@ final class FocuswardModel: ObservableObject {
         persistDailyLimits()
     }
 
-    func persistStateForTermination() {
-        persistDailyLimits()
-    }
-
     func refreshDailyLimits(at date: Date = Date()) {
         let previousDailyLimits = dailyLimits
         dailyLimits.refresh(at: date)
         if dailyLimits != previousDailyLimits {
-            persistDailyLimits(at: date)
+            persistDailyLimits()
         }
     }
 
@@ -316,12 +310,7 @@ final class FocuswardModel: ObservableObject {
             finishSession(message: "Session complete")
         }
         guard sessionEnd != nil || dailyLimits.isActive else { return }
-
-        let previousDailyLimits = dailyLimits
-        dailyLimits.refresh(at: date)
-        if dailyLimits != previousDailyLimits {
-            dailyLimitsNeedPersistence = true
-        }
+        refreshDailyLimits(at: date)
 
         // The session or Daily Limits can end while Safari answers. Each step reads the current state.
         do {
@@ -374,8 +363,6 @@ final class FocuswardModel: ObservableObject {
                 dailyLimitsMessage = error.localizedDescription
             }
         }
-
-        persistDailyLimitsIfNeeded(at: date)
     }
 
     private func shieldURL(
@@ -428,22 +415,11 @@ final class FocuswardModel: ObservableObject {
         store.preferredDurationMinutes = selectedDurationMinutes
     }
 
-    private func persistDailyLimitsIfNeeded(at date: Date) {
-        guard dailyLimitsNeedPersistence else { return }
-        guard date.timeIntervalSince(lastDailyPersistenceAt ?? .distantPast) >= 5 else {
-            return
-        }
-        persistDailyLimits(at: date)
-    }
-
-    private func persistDailyLimits(at date: Date = Date()) {
+    private func persistDailyLimits() {
         do {
             try store.saveDailyLimits(dailyLimits)
         } catch {
             dailyLimitsMessage = "Focusward could not save the Daily Limits. \(error.localizedDescription)"
-            return
         }
-        dailyLimitsNeedPersistence = false
-        lastDailyPersistenceAt = date
     }
 }
