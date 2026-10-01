@@ -72,8 +72,8 @@ private struct Sidebar: View {
     }
 
     private func sessionBadge(at date: Date) -> Text? {
-        guard model.isSessionActive, let end = model.sessionEnd else { return nil }
-        return Text(countdownText(seconds: max(0, Int(end.timeIntervalSince(date)))))
+        guard model.isSessionActive else { return nil }
+        return Text(countdownText(seconds: model.sessionSecondsLeft(at: date)))
             .monospacedDigit()
     }
 }
@@ -90,7 +90,7 @@ private struct ProtectionStatus: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(model.isProtectionActive ? "Protection On" : "Protection Off")
                     .font(.callout.weight(.semibold))
-                Text(statusText)
+                Text(model.protectionStatusMessage)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -101,14 +101,6 @@ private struct ProtectionStatus: View {
         .padding(.vertical, 10)
         .background(.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .accessibilityElement(children: .combine)
-    }
-
-    // While a session runs, the session message has priority over the Daily Limits message.
-    private var statusText: String {
-        if !model.isSessionActive, model.dailyLimits.isActive {
-            return model.dailyLimitsMessage
-        }
-        return model.automationMessage
     }
 }
 
@@ -265,7 +257,7 @@ private struct FocusHero: View {
             .foregroundStyle(.secondary)
 
             TimelineView(.periodic(from: .now, by: 1)) { context in
-                LargeTimeText(seconds: remainingSeconds(at: context.date), countsDown: true)
+                LargeTimeText(seconds: model.sessionSecondsLeft(at: context.date), countsDown: true)
             }
             .padding(.top, 12)
 
@@ -275,10 +267,6 @@ private struct FocusHero: View {
                     .padding(.top, 8)
             }
         }
-    }
-
-    private func remainingSeconds(at date: Date) -> Int {
-        max(0, Int((model.sessionEnd ?? date).timeIntervalSince(date)))
     }
 }
 
@@ -384,8 +372,7 @@ private struct EndSessionSheet: View {
     }
 
     private func minutesLeft(at date: Date) -> Int {
-        let seconds = (model.sessionEnd ?? date).timeIntervalSince(date)
-        return max(0, Int((seconds / 60).rounded(.up)))
+        (model.sessionSecondsLeft(at: date) + 59) / 60
     }
 }
 
@@ -1193,7 +1180,7 @@ struct MenuBarContentView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
             TimelineView(.periodic(from: .now, by: 1)) { context in
-                Text(countdownText(seconds: max(0, Int((model.sessionEnd ?? context.date).timeIntervalSince(context.date)))))
+                Text(countdownText(seconds: model.sessionSecondsLeft(at: context.date)))
                     .font(.system(size: 34, weight: .light).monospacedDigit())
                     .tracking(-0.5)
             }

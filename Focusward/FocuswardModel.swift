@@ -111,6 +111,16 @@ final class FocuswardModel: ObservableObject {
         !dailyLimits.sites.isEmpty
     }
 
+    // While a session runs, the session message has priority over the Daily Limits message.
+    var protectionStatusMessage: String {
+        !isSessionActive && dailyLimits.isActive ? dailyLimitsMessage : automationMessage
+    }
+
+    func sessionSecondsLeft(at date: Date) -> Int {
+        guard let sessionEnd else { return 0 }
+        return max(0, Int(sessionEnd.timeIntervalSince(date)))
+    }
+
     func addDraftDomain() {
         guard let normalized = DomainMatcher.normalizeRule(draftDomain) else { return }
 

@@ -72,6 +72,37 @@ final class FocuswardModelTests: XCTestCase {
         XCTAssertEqual(model.redirectedTabCount, 2)
     }
 
+    func testReportsTheWholeSecondsLeftInTheSession() throws {
+        let model = try makeModel(safari: FakeSafari(urls: []))
+        XCTAssertEqual(model.sessionSecondsLeft(at: Date()), 0)
+
+        model.draftDomain = "youtube.com"
+        model.addDraftDomain()
+        model.selectDurationPreset(25)
+        model.startSession()
+        let end = try XCTUnwrap(model.sessionEnd)
+
+        XCTAssertEqual(model.sessionSecondsLeft(at: end.addingTimeInterval(-90.5)), 90)
+        XCTAssertEqual(model.sessionSecondsLeft(at: end.addingTimeInterval(10)), 0)
+    }
+
+    func testTheSessionMessageHasPriorityInTheProtectionStatus() async throws {
+        let model = try makeModel(safari: FakeSafari(urls: ["https://reddit.com/"]))
+        model.draftDomain = "reddit.com"
+        model.addDraftDomain()
+        model.dailyDraftDomain = "youtube.com"
+        model.addDailyDraftSite()
+        XCTAssertEqual(model.protectionStatusMessage, "Ready")
+
+        model.setDailyLimitsActive(true)
+        XCTAssertEqual(model.protectionStatusMessage, "Starting Safari monitoring…")
+
+        model.startSession()
+        await model.monitorSafari(at: Date())
+        XCTAssertEqual(model.dailyLimitsMessage, "Safari monitoring active")
+        XCTAssertEqual(model.protectionStatusMessage, "Blocked 1 Safari tab")
+    }
+
     func testIgnoresRequestsThatTheControlsDoNotAllow() throws {
         let model = try makeModel(safari: FakeSafari(urls: []))
 
