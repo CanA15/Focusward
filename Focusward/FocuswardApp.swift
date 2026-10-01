@@ -28,7 +28,7 @@ struct FocuswardApp: App {
 
 private struct MainWindowContent: View {
     @Environment(\.openWindow) private var openWindow
-    @ObservedObject var model: FocuswardModel
+    let model: FocuswardModel
     let appDelegate: AppDelegate
     @Binding var selectedSection: FocuswardSection?
 
