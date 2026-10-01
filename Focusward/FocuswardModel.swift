@@ -301,14 +301,10 @@ final class FocuswardModel: ObservableObject {
     }
 
     func monitorSafari(at date: Date) async {
-        var activeSessionEnd: Date?
         if let end = sessionEnd, end <= date {
             finishSession(message: "Session complete")
-        } else {
-            activeSessionEnd = sessionEnd
         }
-
-        guard activeSessionEnd != nil || dailyLimits.isActive else { return }
+        guard sessionEnd != nil || dailyLimits.isActive else { return }
 
         let previousDailyLimits = dailyLimits
         dailyLimits.refresh(at: date)
@@ -316,55 +312,42 @@ final class FocuswardModel: ObservableObject {
             dailyLimitsNeedPersistence = true
         }
 
+        // The session or Daily Limits can end while Safari answers. Each step reads the current state.
         do {
             let snapshots = try await safari.tabs()
-
-            // The session or Daily Limits can end while Safari answers.
-            activeSessionEnd = sessionEnd
-            guard activeSessionEnd != nil || dailyLimits.isActive else { return }
-
             var sessionRedirects = 0
             var dailyRedirects = 0
 
             for snapshot in snapshots {
                 guard let hostname = DomainMatcher.hostname(from: snapshot.url) else { continue }
 
-                let destination: URL?
-                let isSessionBlock = activeSessionEnd != nil
-                    && DomainMatcher.isBlocked(hostname: hostname, by: domains)
-
-                if isSessionBlock, let activeSessionEnd {
-                    destination = shieldURL(
-                        blockEnd: activeSessionEnd,
-                        hostname: hostname,
-                        mode: "session"
-                    )
+                if let sessionEnd, DomainMatcher.isBlocked(hostname: hostname, by: domains) {
+                    guard
+                        let destination = shieldURL(blockEnd: sessionEnd, hostname: hostname, mode: "session")
+                    else { continue }
+                    if try await safari.redirect(snapshot, to: destination) {
+                        sessionRedirects += 1
+                    }
                 } else if
                     let site = dailyLimits.blockingSite(for: hostname),
                     let reset = dailyLimits.nextReset()
                 {
-                    destination = shieldURL(
-                        blockEnd: reset,
-                        hostname: hostname,
-                        mode: "daily",
-                        breakMinutesLeft: site.remainingMinutes,
-                        isBreakBlockedBySession: isBlockedBySession(site.domain)
-                    )
-                } else {
-                    destination = nil
-                }
-
-                guard let destination else { continue }
-                if try await safari.redirect(snapshot, to: destination) {
-                    if isSessionBlock {
-                        sessionRedirects += 1
-                    } else {
+                    guard
+                        let destination = shieldURL(
+                            blockEnd: reset,
+                            hostname: hostname,
+                            mode: "daily",
+                            breakMinutesLeft: site.remainingMinutes,
+                            isBreakBlockedBySession: isBlockedBySession(site.domain)
+                        )
+                    else { continue }
+                    if try await safari.redirect(snapshot, to: destination) {
                         dailyRedirects += 1
                     }
                 }
             }
 
-            if activeSessionEnd != nil {
+            if sessionEnd != nil {
                 redirectedTabCount += sessionRedirects
                 automationMessage = sessionRedirects > 0
                     ? blockedTabsMessage(count: sessionRedirects)
@@ -377,7 +360,7 @@ final class FocuswardModel: ObservableObject {
                     : "Safari monitoring active"
             }
         } catch {
-            if activeSessionEnd != nil {
+            if sessionEnd != nil {
                 automationMessage = error.localizedDescription
             }
             if dailyLimits.isActive {

@@ -34,6 +34,22 @@ final class FocuswardModelTests: XCTestCase {
         XCTAssertEqual(model.dailyRedirectedTabCount, 1)
     }
 
+    func testEndingTheSessionDuringAScanStopsTheRemainingRedirects() async throws {
+        let safari = FakeSafari(urls: ["https://youtube.com/1", "https://youtube.com/2"])
+        let model = try makeModel(safari: safari)
+        model.draftDomain = "youtube.com"
+        model.addDraftDomain()
+        model.startSession()
+        await safari.setOnRedirect { model.endSessionEarly() }
+
+        await model.monitorSafari(at: Date())
+
+        let redirects = await safari.redirects
+        XCTAssertEqual(redirects.map(\.tabURL), ["https://youtube.com/1"])
+        XCTAssertFalse(model.isSessionActive)
+        XCTAssertEqual(model.automationMessage, "Session ended early")
+    }
+
     private func makeModel(safari: FakeSafari) throws -> FocuswardModel {
         try makeModel(safari: safari, store: makeStore())
     }
@@ -61,6 +77,7 @@ private actor FakeSafari: SafariTabAutomation {
 
     private let openTabs: [SafariTabSnapshot]
     private(set) var redirects: [Redirect] = []
+    private var onRedirect: (@MainActor @Sendable () -> Void)?
 
     init(urls: [String]) {
         openTabs = urls.enumerated().map { index, url in
@@ -72,8 +89,13 @@ private actor FakeSafari: SafariTabAutomation {
         openTabs
     }
 
-    func redirect(_ tab: SafariTabSnapshot, to destination: URL) -> Bool {
+    func setOnRedirect(_ action: @escaping @MainActor @Sendable () -> Void) {
+        onRedirect = action
+    }
+
+    func redirect(_ tab: SafariTabSnapshot, to destination: URL) async -> Bool {
         redirects.append(Redirect(tabURL: tab.url, destination: destination))
+        await onRedirect?()
         return true
     }
 }
