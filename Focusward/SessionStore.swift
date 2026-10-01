@@ -8,6 +8,7 @@ final class SessionStore {
         static let earlyEndReadyAt = "earlyEndReadyAt"
         static let earlyEndRemainingSeconds = "earlyEndRemainingSeconds"
         static let dailyLimits = "dailyLimits"
+        static let unreadableDailyLimits = "unreadableDailyLimits"
     }
 
     private let defaults: UserDefaults
@@ -39,21 +40,20 @@ final class SessionStore {
         }
     }
 
-    var dailyLimits: DailyLimits? {
-        get {
-            guard let data = defaults.data(forKey: Key.dailyLimits) else { return nil }
-            return try? PropertyListDecoder().decode(DailyLimits.self, from: data)
+    // An unreadable value moves to a separate key, so that a later save cannot replace the user's data.
+    func loadDailyLimits() throws -> DailyLimits? {
+        guard let data = defaults.data(forKey: Key.dailyLimits) else { return nil }
+        do {
+            return try PropertyListDecoder().decode(DailyLimits.self, from: data)
+        } catch {
+            defaults.set(data, forKey: Key.unreadableDailyLimits)
+            defaults.removeObject(forKey: Key.dailyLimits)
+            throw error
         }
-        set {
-            guard let newValue else {
-                defaults.removeObject(forKey: Key.dailyLimits)
-                return
-            }
+    }
 
-            if let data = try? PropertyListEncoder().encode(newValue) {
-                defaults.set(data, forKey: Key.dailyLimits)
-            }
-        }
+    func saveDailyLimits(_ dailyLimits: DailyLimits) throws {
+        defaults.set(try PropertyListEncoder().encode(dailyLimits), forKey: Key.dailyLimits)
     }
 
     func clearSession() {

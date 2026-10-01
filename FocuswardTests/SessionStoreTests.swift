@@ -72,10 +72,25 @@ final class SessionStoreTests: XCTestCase {
         limits.setActive(true, at: start)
         XCTAssertTrue(limits.startBreak(for: "youtube.com", minutes: 5, at: start))
 
-        let store = SessionStore(defaults: defaults)
-        store.dailyLimits = limits
+        try SessionStore(defaults: defaults).saveDailyLimits(limits)
 
-        XCTAssertEqual(SessionStore(defaults: defaults).dailyLimits, limits)
+        XCTAssertEqual(try SessionStore(defaults: defaults).loadDailyLimits(), limits)
+    }
+
+    func testMovesUnreadableDailyLimitsToASeparateKey() throws {
+        let suiteName = "FocuswardTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let unreadable = Data("not a property list".utf8)
+        defaults.set(unreadable, forKey: "dailyLimits")
+        let store = SessionStore(defaults: defaults)
+
+        XCTAssertThrowsError(try store.loadDailyLimits())
+        XCTAssertNil(try store.loadDailyLimits())
+
+        try store.saveDailyLimits(DailyLimits(now: Date(timeIntervalSince1970: 2_000_000_000)))
+        XCTAssertEqual(defaults.data(forKey: "unreadableDailyLimits"), unreadable)
     }
 
     func testShieldPageExplainsDailyLimitBreaks() throws {

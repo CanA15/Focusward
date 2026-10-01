@@ -52,7 +52,12 @@ final class FocuswardModel: ObservableObject {
         self.domains = store.domains
 
         let now = Date()
-        var restoredDailyLimits = store.dailyLimits ?? DailyLimits(now: now)
+        var restoredDailyLimits = DailyLimits(now: now)
+        do {
+            restoredDailyLimits = try store.loadDailyLimits() ?? restoredDailyLimits
+        } catch {
+            self.dailyLimitsMessage = "Focusward could not read the saved Daily Limits. It kept a copy of the data."
+        }
         restoredDailyLimits.refresh(at: now)
         self.dailyLimits = restoredDailyLimits
         if restoredDailyLimits.isActive {
@@ -432,7 +437,12 @@ final class FocuswardModel: ObservableObject {
     }
 
     private func persistDailyLimits(at date: Date = Date()) {
-        store.dailyLimits = dailyLimits
+        do {
+            try store.saveDailyLimits(dailyLimits)
+        } catch {
+            dailyLimitsMessage = "Focusward could not save the Daily Limits. \(error.localizedDescription)"
+            return
+        }
         dailyLimitsNeedPersistence = false
         lastDailyPersistenceAt = date
     }

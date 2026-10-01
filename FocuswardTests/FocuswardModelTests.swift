@@ -50,6 +50,21 @@ final class FocuswardModelTests: XCTestCase {
         XCTAssertEqual(model.automationMessage, "Session ended early")
     }
 
+    func testKeepsUnreadableDailyLimitsAndReportsTheError() throws {
+        let defaults = try makeDefaults()
+        let unreadable = Data("not a property list".utf8)
+        defaults.set(unreadable, forKey: "dailyLimits")
+
+        let model = makeModel(safari: FakeSafari(urls: []), store: SessionStore(defaults: defaults))
+        XCTAssertEqual(model.dailyLimitsMessage, "Focusward could not read the saved Daily Limits. It kept a copy of the data.")
+
+        model.dailyDraftDomain = "youtube.com"
+        model.addDailyDraftSite()
+
+        XCTAssertEqual(defaults.data(forKey: "unreadableDailyLimits"), unreadable)
+        XCTAssertEqual(try SessionStore(defaults: defaults).loadDailyLimits()?.sites.map(\.domain), ["youtube.com"])
+    }
+
     private func makeModel(safari: FakeSafari) throws -> FocuswardModel {
         try makeModel(safari: safari, store: makeStore())
     }

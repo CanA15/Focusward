@@ -6,7 +6,7 @@ While protection is active, Safari supplies Focusward with the complete address 
 
 ## What Focusward stores
 
-Focusward stores the timed-session settings and the Daily Limits state in the app's local `UserDefaults` container. The Daily Limits state contains normalized domains, the daily break time, the used break time, the current day boundary, the start and end times of a break in progress, and the number of breaks on the current day. The bundled shield is a local HTML file with a restrictive Content Security Policy and no remote assets.
+Focusward stores the timed-session settings and the Daily Limits state in the app's local `UserDefaults` container. The Daily Limits state contains normalized domains, the daily break time, the used break time, the current day boundary, the start and end times of a break in progress, and the number of breaks on the current day. If Focusward cannot read the saved Daily Limits, it moves the unreadable data to a separate key in the same container and starts with empty Daily Limits. A later save does not replace that copy. The bundled shield is a local HTML file with a restrictive Content Security Policy and no remote assets.
 
 ## Permissions and process boundary
 
